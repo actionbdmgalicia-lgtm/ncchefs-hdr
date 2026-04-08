@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["/Users/maccuatro/PROGRAMACION/CLAUDE/ncchefs-bodas-2026/node_modules/.bin/vite"],
+      "port": 5173
+    }
+  ]
+}
