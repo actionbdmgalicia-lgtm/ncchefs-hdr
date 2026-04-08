@@ -1,7 +1,7 @@
 import { useAuth } from '../../context/AuthContext'
 
 export const TeamManagement = () => {
-  const { currentUser } = useAuth()
+  // useAuth available but currentUser not needed in current implementation
 
   const teamMembers = [
     {

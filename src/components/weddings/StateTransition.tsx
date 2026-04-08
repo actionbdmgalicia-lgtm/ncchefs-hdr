@@ -7,7 +7,6 @@ interface StateTransitionProps {
     newStatus: WeddingHDRStatus,
     evaluation?: WeddingEvaluation
   ) => Promise<void>
-  loading?: boolean
   userName: string
 }
 

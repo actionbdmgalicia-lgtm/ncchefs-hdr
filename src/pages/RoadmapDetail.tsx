@@ -1035,9 +1035,7 @@ export const RoadmapDetail = () => {
                 Hitos del día
               </h4>
               <div className="space-y-2">
-                {timeline.filter(s => s.hora).slice(0, 6).map(step => {
-                  const cfg = CATEGORIA_CONFIG[step.categoria]
-                  return (
+                {timeline.filter(s => s.hora).slice(0, 6).map(step => (
                     <div key={step.id} className="flex items-center gap-3 text-sm">
                       <span className="font-mono text-xs font-bold text-on-surface-variant w-10 shrink-0">{step.hora}</span>
                       <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLORS[step.categoria]}`} />

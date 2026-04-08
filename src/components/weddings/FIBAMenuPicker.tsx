@@ -6,7 +6,6 @@ interface FIBAMenuPickerProps {
   isOpen: boolean
   onClose: () => void
   onSelect: (plato: FIBAPlato) => void
-  loading?: boolean
 }
 
 export const FIBAMenuPicker = ({

@@ -107,7 +107,6 @@ export async function updateWeddingStatus(
 
 export async function addWeddingEvaluation(
   weddingId: string,
-  versionId: string,
   statusType: 'inicial' | 'prueba_menu' | 'final',
   evaluatedBy: string,
   evaluatedByName: string,

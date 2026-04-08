@@ -3,9 +3,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export const Header = () => {
-  const { currentUser } = useAuth()
-  const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
+  // currentUser, navigate, searchOpen available but unused in current implementation
 
   return (
     <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-md flex justify-between items-center w-full px-8 py-4 border-b border-outline-variant/10 md:ml-64 font-body">
