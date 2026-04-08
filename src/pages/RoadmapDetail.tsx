@@ -3,6 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { db, storage } from '../services/firebase'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { useAuth } from '../context/AuthContext'
+import { EditModeToggle } from '../components/weddings/EditModeToggle'
+import { VersionHistoryPanel } from '../components/weddings/VersionHistoryPanel'
+import { StateTransition } from '../components/weddings/StateTransition'
+import { FIBAMenuPicker } from '../components/weddings/FIBAMenuPicker'
+import { saveWeddingVersion, updateWeddingStatus } from '../services/weddingVersionService'
+import type { WeddingVersion, WeddingHDRStatus, WeddingEvaluation, FIBAPlato } from '../types'
 
 // ── Timeline types ──────────────────────────────
 type TimelineCategoria =
@@ -545,6 +552,7 @@ function StepForm({
 export const RoadmapDetail = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { currentUser } = useAuth()
   const [wedding, setWedding] = useState<Wedding | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -555,14 +563,32 @@ export const RoadmapDetail = () => {
   const [editingStep, setEditingStep] = useState<TimelineStep | null>(null)
   const [savingTimeline, setSavingTimeline] = useState(false)
 
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [editedMenu, setEditedMenu] = useState<Menu>({})
+  const [editedProtocols, setEditedProtocols] = useState<Protocols>({})
+  const [editedNotes, setEditedNotes] = useState<string>('')
+  const [showHistory, setShowHistory] = useState(false)
+  const [versions, setVersions] = useState<WeddingVersion[]>([])
+  const [hdrStatus, setHdrStatus] = useState<WeddingHDRStatus>('inicial')
+  const [showFIBAPicker, setShowFIBAPicker] = useState(false)
+  const [fibaTargetSection, setFibaTargetSection] = useState<string>('')
+
   useEffect(() => {
     const loadWedding = async () => {
       if (!id) { setError('No ID'); setLoading(false); return }
       try {
         const snap = await getDoc(doc(db, 'weddings', id))
         if (snap.exists()) {
-          const data = { id: snap.id, ...snap.data() } as Wedding
+          const data = { id: snap.id, ...snap.data() } as Wedding & { hdrStatus?: WeddingHDRStatus; versions?: WeddingVersion[] }
           setWedding(data)
+          setEditedMenu(data.menu || {})
+          setEditedProtocols(data.protocols || {})
+          setEditedNotes('')
+          if (data.hdrStatus) setHdrStatus(data.hdrStatus)
+          if (data.versions) setVersions(data.versions)
           // Load saved timeline or generate suggestions
           if (data.timeline && data.timeline.length > 0) {
             setTimeline(data.timeline)
@@ -604,6 +630,126 @@ export const RoadmapDetail = () => {
     })
     setTimeline(sorted)
     saveTimeline(sorted)
+  }
+
+  // ── Edit mode handlers ──────────────────────────
+  const handleStartEdit = () => {
+    if (!wedding) return
+    setEditedMenu(wedding.menu || {})
+    setEditedProtocols(wedding.protocols || {})
+    setEditedNotes('')
+    setEditMode(true)
+  }
+
+  const handleCancelEdit = () => {
+    if (!wedding) return
+    setEditedMenu(wedding.menu || {})
+    setEditedProtocols(wedding.protocols || {})
+    setEditedNotes('')
+    setEditMode(false)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!id || !wedding) return
+    setSaving(true)
+    try {
+      const changes: Record<string, unknown> = {}
+      if (JSON.stringify(editedMenu) !== JSON.stringify(wedding.menu)) {
+        changes.menu = editedMenu
+      }
+      if (JSON.stringify(editedProtocols) !== JSON.stringify(wedding.protocols)) {
+        changes.protocols = editedProtocols
+      }
+
+      if (Object.keys(changes).length === 0) {
+        setEditMode(false)
+        setSaving(false)
+        return
+      }
+
+      const userName = currentUser?.email || 'Usuario'
+      const newVersionId = await saveWeddingVersion(id, changes, currentUser?.uid || '', userName, 'Edición manual')
+
+      // Update local state
+      setWedding(w => w ? { ...w, menu: editedMenu, protocols: editedProtocols } : w)
+      const newVersion: WeddingVersion = {
+        id: newVersionId,
+        timestamp: new Date(),
+        changedBy: currentUser?.uid || '',
+        changedByName: userName,
+        reason: 'Edición manual',
+        snapshot: changes as WeddingVersion['snapshot'],
+        evaluations: {}
+      }
+      setVersions(v => [newVersion, ...v])
+      setEditMode(false)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (e) {
+      console.error('Error saving edit:', e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStatusChange = async (newStatus: WeddingHDRStatus, evaluation?: WeddingEvaluation) => {
+    if (!id) return
+    const userName = currentUser?.email || 'Usuario'
+    await updateWeddingStatus(id, newStatus, currentUser?.uid || '', userName)
+    setHdrStatus(newStatus)
+    if (evaluation) {
+      const evalVersion: WeddingVersion = {
+        id: `v_${Date.now()}`,
+        timestamp: new Date(),
+        changedBy: currentUser?.uid || '',
+        changedByName: userName,
+        reason: `Estado: ${newStatus}`,
+        snapshot: {},
+        evaluations: { [newStatus]: evaluation }
+      }
+      setVersions(v => [evalVersion, ...v])
+    }
+  }
+
+  const handleRestoreVersion = async (versionId: string) => {
+    const version = versions.find(v => v.id === versionId)
+    if (!version || !id) return
+    try {
+      const changes: Record<string, unknown> = {}
+      if (version.snapshot.menu) changes.menu = version.snapshot.menu
+      if (version.snapshot.protocols) changes.protocols = version.snapshot.protocols
+
+      if (Object.keys(changes).length > 0) {
+        const userName = currentUser?.email || 'Usuario'
+        await saveWeddingVersion(id, changes, currentUser?.uid || '', userName, `Restaurado desde ${versionId}`)
+        if (version.snapshot.menu) setEditedMenu(version.snapshot.menu as Menu)
+        setWedding(w => w ? { ...w, ...changes } : w)
+      }
+    } catch (e) {
+      console.error('Error restoring version:', e)
+    }
+  }
+
+  const handleFIBASelect = (plato: FIBAPlato) => {
+    setEditedMenu(m => {
+      const updated = { ...m }
+      if (fibaTargetSection === 'entrante') updated.entrante = plato.nombre
+      else if (fibaTargetSection === 'pescado') updated.pescado = plato.nombre
+      else if (fibaTargetSection === 'carne') updated.carne = plato.nombre
+      else if (fibaTargetSection === 'postre') updated.postre = plato.nombre
+      else if (fibaTargetSection === 'complementos') updated.complementos = [...(m.complementos || []), plato.nombre]
+      else if (fibaTargetSection === 'aperitivos') updated.aperitivos = [...(m.aperitivos || []), plato.nombre]
+      else if (fibaTargetSection === 'marisco') updated.marisco = [...(m.marisco || []), plato.nombre]
+      else if (fibaTargetSection === 'tapa') updated.tapa = [...(m.tapa || []), plato.nombre]
+      else if (fibaTargetSection === 'recena') updated.recena = [...(m.recena || []), plato.nombre]
+      return updated
+    })
+    setShowFIBAPicker(false)
+  }
+
+  const openFIBAPicker = (section: string) => {
+    setFibaTargetSection(section)
+    setShowFIBAPicker(true)
   }
 
   const handleAddStep = (step: Omit<TimelineStep, 'id' | 'completado'>) => {
@@ -693,10 +839,46 @@ export const RoadmapDetail = () => {
               {wedding.coordinator && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-base">person</span>{wedding.coordinator}</span>}
             </div>
           </div>
-          <div className="flex gap-3 shrink-0">
-            <button className="px-5 py-2 border border-outline-variant text-on-surface text-xs font-bold uppercase tracking-widest rounded hover:bg-surface-container-low transition-colors">
-              Exportar PDF
-            </button>
+          <div className="flex flex-col gap-3 shrink-0 items-end">
+            {/* HDR Status Badge */}
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest ${
+              hdrStatus === 'inicial' ? 'bg-amber-100 text-amber-900' :
+              hdrStatus === 'prueba_menu' ? 'bg-blue-100 text-blue-900' :
+              'bg-green-100 text-green-900'
+            }`}>
+              <span className="material-symbols-outlined text-sm">
+                {hdrStatus === 'inicial' ? 'circle' : hdrStatus === 'prueba_menu' ? 'schedule' : 'check_circle'}
+              </span>
+              {hdrStatus === 'inicial' ? 'Inicial' : hdrStatus === 'prueba_menu' ? 'Prueba y Menú' : 'Final'}
+            </div>
+            <div className="flex gap-2">
+              <a href="https://fiba-menus.vercel.app" target="_blank" rel="noopener noreferrer"
+                className="px-4 py-2 border border-amber-300 text-amber-700 text-xs font-bold uppercase tracking-widest rounded hover:bg-amber-50 transition-colors flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm">restaurant_menu</span>
+                FIBA Menús
+              </a>
+              <button
+                onClick={() => setShowHistory(h => !h)}
+                className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors flex items-center gap-1.5 ${
+                  showHistory ? 'bg-primary text-on-primary' : 'border border-outline-variant text-on-surface hover:bg-surface-container-low'
+                }`}>
+                <span className="material-symbols-outlined text-sm">history</span>
+                Historial
+              </button>
+              <EditModeToggle
+                isEditing={editMode}
+                onToggle={handleStartEdit}
+                onSave={handleSaveEdit}
+                onCancel={handleCancelEdit}
+                saving={saving}
+              />
+            </div>
+            {saveSuccess && (
+              <p className="text-xs text-green-600 font-bold flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                Cambios guardados
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -754,31 +936,63 @@ export const RoadmapDetail = () => {
               </div>
             )}
 
-            {menu.entrante && (
+            {/* Entrante */}
+            {(menu.entrante || editMode) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Entrante</p>
-                <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.entrante}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Entrante</p>
+                  {editMode && <button onClick={() => openFIBAPicker('entrante')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
+                {editMode
+                  ? <input value={editedMenu.entrante || ''} onChange={e => setEditedMenu(m => ({...m, entrante: e.target.value}))}
+                      className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del entrante..." />
+                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.entrante}</p>
+                }
               </div>
             )}
 
-            {menu.pescado && (
+            {/* Pescado */}
+            {(menu.pescado || editMode) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Pescado</p>
-                <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.pescado}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Pescado</p>
+                  {editMode && <button onClick={() => openFIBAPicker('pescado')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
+                {editMode
+                  ? <input value={editedMenu.pescado || ''} onChange={e => setEditedMenu(m => ({...m, pescado: e.target.value}))}
+                      className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del pescado..." />
+                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.pescado}</p>
+                }
               </div>
             )}
 
-            {menu.carne && (
+            {/* Carne */}
+            {(menu.carne || editMode) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Carne</p>
-                <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.carne}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Carne</p>
+                  {editMode && <button onClick={() => openFIBAPicker('carne')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
+                {editMode
+                  ? <input value={editedMenu.carne || ''} onChange={e => setEditedMenu(m => ({...m, carne: e.target.value}))}
+                      className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del plato de carne..." />
+                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.carne}</p>
+                }
               </div>
             )}
 
-            {menu.postre && (
+            {/* Postre */}
+            {(menu.postre || editMode) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Postre & Tarta</p>
-                <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.postre}</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Postre & Tarta</p>
+                  {editMode && <button onClick={() => openFIBAPicker('postre')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
+                {editMode
+                  ? <input value={editedMenu.postre || ''} onChange={e => setEditedMenu(m => ({...m, postre: e.target.value}))}
+                      className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del postre..." />
+                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.postre}</p>
+                }
               </div>
             )}
 
@@ -1059,8 +1273,50 @@ export const RoadmapDetail = () => {
             {wedding.clients && wedding.clients !== ':' && <div className="flex gap-2"><span className="text-on-surface-variant min-w-[100px]">Clientes:</span><span className="text-on-surface">{wedding.clients}</span></div>}
             {wedding.coordinator && <div className="flex gap-2"><span className="text-on-surface-variant min-w-[100px]">Coord.:</span><span className="text-on-surface font-medium">{wedding.coordinator}</span></div>}
           </div>
+
+          {/* Estado HDR */}
+          <div>
+            <h4 className="font-headline text-base font-bold text-on-surface mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-primary">flag</span>
+              Estado HDR
+            </h4>
+            <StateTransition
+              currentStatus={hdrStatus}
+              onStatusChange={handleStatusChange}
+              userName={currentUser?.email || 'Usuario'}
+            />
+          </div>
+
+          {/* Historial de versiones */}
+          {showHistory && (
+            <div className="border border-outline-variant rounded-xl overflow-hidden">
+              <VersionHistoryPanel
+                versions={versions}
+                onRestore={handleRestoreVersion}
+              />
+            </div>
+          )}
+
+          {/* FIBA Menus link */}
+          <a href="https://fiba-menus.vercel.app" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors group">
+            <span className="material-symbols-outlined text-amber-600 text-2xl">restaurant_menu</span>
+            <div>
+              <p className="font-bold text-amber-900 text-sm">FIBA Menús</p>
+              <p className="text-xs text-amber-700">Ver catálogo completo de platos y precios</p>
+            </div>
+            <span className="material-symbols-outlined text-amber-400 ml-auto group-hover:translate-x-1 transition-transform">open_in_new</span>
+          </a>
+
         </div>
       </div>
+
+      {/* FIBA Picker Modal */}
+      <FIBAMenuPicker
+        isOpen={showFIBAPicker}
+        onClose={() => setShowFIBAPicker(false)}
+        onSelect={handleFIBASelect}
+      />
     </section>
   )
 }
