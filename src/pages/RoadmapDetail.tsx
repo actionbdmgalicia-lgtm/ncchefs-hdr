@@ -1036,13 +1036,12 @@ export const RoadmapDetail = () => {
               </h4>
               <div className="space-y-2">
                 {timeline.filter(s => s.hora).slice(0, 6).map(step => (
-                    <div key={step.id} className="flex items-center gap-3 text-sm">
-                      <span className="font-mono text-xs font-bold text-on-surface-variant w-10 shrink-0">{step.hora}</span>
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLORS[step.categoria]}`} />
-                      <span className={`text-xs truncate ${step.completado ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{step.titulo}</span>
-                    </div>
-                  )
-                })}
+                  <div key={step.id} className="flex items-center gap-3 text-sm">
+                    <span className="font-mono text-xs font-bold text-on-surface-variant w-10 shrink-0">{step.hora}</span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLORS[step.categoria]}`} />
+                    <span className={`text-xs truncate ${step.completado ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{step.titulo}</span>
+                  </div>
+                ))}
                 {timeline.filter(s => s.hora).length > 6 && (
                   <p className="text-xs text-on-surface-variant text-center pt-1">
                     +{timeline.filter(s => s.hora).length - 6} pasos más

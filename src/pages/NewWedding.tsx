@@ -475,8 +475,8 @@ export const NewWedding = () => {
                     {/* What it has */}
                     <div className="flex gap-1.5 mt-2 flex-wrap">
                       {hasMenu && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">{'MENÚ'}</span>}
-                      {(w.menu as Record<string, unknown>)?.recena && <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{'RECENA'}</span>}
-                      {(w.menu as Record<string, unknown>)?.infantil && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-bold">{'INFANTIL'}</span>}
+                      {Boolean((w.menu as Record<string, unknown>)?.recena) && <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{'RECENA'}</span>}
+                      {Boolean((w.menu as Record<string, unknown>)?.infantil) && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-bold">{'INFANTIL'}</span>}
                       {w.timeline && Array.isArray(w.timeline) && w.timeline.length > 0 && <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">{'TIMELINE'}</span>}
                     </div>
                   </button>

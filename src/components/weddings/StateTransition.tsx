@@ -36,7 +36,6 @@ const STATUS_SEQUENCE: WeddingHDRStatus[] = ['inicial', 'prueba_menu', 'final']
 export const StateTransition = ({
   currentStatus,
   onStatusChange,
-  loading,
   userName
 }: StateTransitionProps) => {
   const [selectedStatus, setSelectedStatus] = useState<WeddingHDRStatus | null>(

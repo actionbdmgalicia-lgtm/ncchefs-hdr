@@ -11,8 +11,7 @@ interface FIBAMenuPickerProps {
 export const FIBAMenuPicker = ({
   isOpen,
   onClose,
-  onSelect,
-  loading
+  onSelect
 }: FIBAMenuPickerProps) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGrupoId, setSelectedGrupoId] = useState<string | null>(null)
