@@ -203,10 +203,12 @@ export const NewWedding = () => {
   const toggleCopy = (k: keyof CopyOptions) =>
     setCopyOptions(o => ({ ...o, [k]: !o[k] }))
 
-  const selectAllCopy = (val: boolean) =>
-    setCopyOptions(Object.fromEntries(
+  const selectAllCopy = (val: boolean) => {
+    const updated = Object.fromEntries(
       Object.keys(DEFAULT_COPY).map(k => [k, val])
-    ) as CopyOptions)
+    )
+    setCopyOptions(updated as unknown as CopyOptions)
+  }
 
   // Navigation
   const nextStep = () => {

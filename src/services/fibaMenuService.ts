@@ -7,10 +7,7 @@ import {
   collection,
   getDocs,
   getDoc,
-  doc,
-  query,
-  limit,
-  Firestore
+  doc
 } from 'firebase/firestore'
 import type { FIBAPlato, FIBAGrupo } from '../types'
 

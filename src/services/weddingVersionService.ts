@@ -3,7 +3,6 @@ import {
   updateDoc,
   arrayUnion,
   serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import type { WeddingVersion, WeddingVersionSnapshot } from '../types'
