@@ -50,20 +50,10 @@ export async function getGrupos(): Promise<FIBAGrupo[]> {
  */
 export async function searchFIBAPlatos(query: string): Promise<FIBAPlato[]> {
   try {
-    // Get all platos and filter client-side
-    // (Firestore doesn't support text search without extensions)
-    const snap = await getDocs(collection(fibaDb, 'platos'))
-    const allPlatos = snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    })) as FIBAPlato[]
-
-    // Filter by nombre contains
-    const filtered = allPlatos.filter(p =>
-      p.nombre.toLowerCase().includes(query.toLowerCase())
-    )
-
-    return filtered.slice(0, 20)
+    const allPlatos = await getAllPlatos()
+    return allPlatos
+      .filter(p => p.nombre.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 20)
   } catch (error) {
     console.error('Error searching FIBA platos:', error)
     return []
@@ -92,10 +82,8 @@ export async function getPlatosByGrupo(grupoId: string): Promise<FIBAPlato[]> {
 
     return platos
       .filter(snap => snap.exists())
-      .map(snap => ({
-        id: snap.id,
-        ...snap.data()
-      })) as FIBAPlato[]
+      .map(snap => extractPlato(snap.id, snap.data() as Record<string, unknown>))
+      .filter((p): p is FIBAPlato => p !== null)
   } catch (error) {
     console.error(`Error fetching platos for grupo ${grupoId}:`, error)
     return []
@@ -112,14 +100,32 @@ export async function getPlatoById(platoId: string): Promise<FIBAPlato | null> {
       return null
     }
 
-    return {
-      id: platoDoc.id,
-      ...platoDoc.data()
-    } as FIBAPlato
+    return extractPlato(platoDoc.id, platoDoc.data() as Record<string, unknown>)
   } catch (error) {
     console.error(`Error fetching plato ${platoId}:`, error)
     return null
   }
+}
+
+// Helper: extract plato from Firestore document data
+// FIBA docs may store data directly or inside a 'value' array
+function extractPlato(id: string, data: Record<string, unknown>): FIBAPlato | null {
+  // Structure 1: { nombre, precio, ... }
+  if (typeof data.nombre === 'string') {
+    return { id, nombre: data.nombre, precio: data.precio as number }
+  }
+  // Structure 2: { value: [{ id, nombre, precio }], updatedAt }
+  if (Array.isArray(data.value) && data.value.length > 0) {
+    const item = data.value[0] as Record<string, unknown>
+    if (typeof item.nombre === 'string') {
+      return {
+        id: (item.id as string) || id,
+        nombre: item.nombre,
+        precio: item.precio as number
+      }
+    }
+  }
+  return null
 }
 
 /**
@@ -128,10 +134,12 @@ export async function getPlatoById(platoId: string): Promise<FIBAPlato | null> {
 export async function getAllPlatos(): Promise<FIBAPlato[]> {
   try {
     const snap = await getDocs(collection(fibaDb, 'platos'))
-    return snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    })) as FIBAPlato[]
+    const platos: FIBAPlato[] = []
+    snap.docs.forEach(d => {
+      const plato = extractPlato(d.id, d.data() as Record<string, unknown>)
+      if (plato) platos.push(plato)
+    })
+    return platos
   } catch (error) {
     console.error('Error fetching all platos:', error)
     return []

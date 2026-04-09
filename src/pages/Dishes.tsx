@@ -6,18 +6,24 @@ export const Dishes = () => {
   const [platos, setPlatos] = useState<FIBAPlato[]>([])
   const [grupos, setGrupos] = useState<FIBAGrupo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedGrupo, setSelectedGrupo] = useState<string>('todos')
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      setLoadError(null)
       try {
         const [platosData, gruposData] = await Promise.all([getAllPlatos(), getGrupos()])
         setPlatos(platosData)
         setGrupos(gruposData)
+        if (platosData.length === 0) {
+          setLoadError('No se encontraron platos en FIBA Firebase. Verifica la conexión o los permisos de Firestore.')
+        }
       } catch (e) {
         console.error('Error loading FIBA data:', e)
+        setLoadError(`Error conectando con FIBA: ${e instanceof Error ? e.message : String(e)}`)
       } finally {
         setLoading(false)
       }
@@ -137,6 +143,11 @@ export const Dishes = () => {
         <div className="text-center py-16 text-on-surface-variant">
           <span className="material-symbols-outlined text-4xl mb-3 block animate-pulse">restaurant_menu</span>
           Cargando catálogo desde FIBA...
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-16">
+          <span className="material-symbols-outlined text-4xl mb-3 block text-red-400">error</span>
+          <p className="text-red-600 text-sm max-w-md mx-auto">{loadError}</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-on-surface-variant">
