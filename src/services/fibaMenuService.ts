@@ -9,13 +9,9 @@ import {
   getDoc,
   doc
 } from 'firebase/firestore'
-import {
-  getAuth,
-  signInAnonymously
-} from 'firebase/auth'
 import type { FIBAPlato, FIBAGrupo } from '../types'
 
-// FIBA Firebase configuration
+// FIBA Firebase configuration (Firestore rules: allow read: if true)
 const fibaConfig = {
   apiKey: 'AIzaSyBrITPuq_PTJ9VR9fBBN1kGT8ul7rqoslc',
   authDomain: 'fiba-menus.firebaseapp.com',
@@ -32,29 +28,12 @@ if (!fibaApp) {
 }
 
 const fibaDb = getFirestore(fibaApp)
-const fibaAuth = getAuth(fibaApp)
-
-// Ensure anonymous auth on FIBA app (needed if Firestore rules require auth)
-let fibaAuthReady = false
-async function ensureFibaAuth() {
-  if (fibaAuthReady) return
-  try {
-    if (!fibaAuth.currentUser) {
-      await signInAnonymously(fibaAuth)
-    }
-    fibaAuthReady = true
-  } catch (e) {
-    // Anonymous auth not enabled or not needed — continue anyway
-    console.warn('FIBA anonymous auth skipped:', e)
-    fibaAuthReady = true
-  }
-}
 
 /**
  * Get all grupos (categories) from FIBA
  */
 export async function getGrupos(): Promise<FIBAGrupo[]> {
-  await ensureFibaAuth()
+
   try {
     const snap = await getDocs(collection(fibaDb, 'grupos'))
     console.log('[FIBA] grupos count:', snap.size)
@@ -155,7 +134,7 @@ function extractPlato(id: string, data: Record<string, unknown>): FIBAPlato | nu
  * Get all platos
  */
 export async function getAllPlatos(): Promise<FIBAPlato[]> {
-  await ensureFibaAuth()
+
   try {
     const snap = await getDocs(collection(fibaDb, 'platos'))
     console.log('[FIBA] platos raw count:', snap.size)
