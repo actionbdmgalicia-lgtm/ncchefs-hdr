@@ -565,6 +565,7 @@ export const RoadmapDetail = () => {
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false)
+  const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact')
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [editedMenu, setEditedMenu] = useState<Menu>({})
@@ -802,13 +803,16 @@ export const RoadmapDetail = () => {
   const fmt = (n?: number | null) =>
     n ? `${n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '—'
 
+  // showAll: true when edit mode OR user selected "Vista Completa"
+  const showAll = editMode || viewMode === 'full'
+
   const protoRows = Object.entries(PROTOCOL_LABELS)
-    .map(([key, label]) => ({ label, value: protocols[key as keyof Protocols] as string }))
-    .filter(r => r.value && r.value.trim())
+    .map(([key, label]) => ({ key, label, value: protocols[key as keyof Protocols] as string }))
+    .filter(r => showAll || (r.value && r.value.trim()))
 
   const specialRows = Object.entries(SPECIAL_LABELS)
-    .map(([key, label]) => ({ label, count: (menu.special_menus as Record<string, number>)?.[key] || 0 }))
-    .filter(r => r.count > 0)
+    .map(([key, label]) => ({ key, label, count: (menu.special_menus as Record<string, number>)?.[key] || 0 }))
+    .filter(r => showAll || r.count > 0)
 
   const completedSteps = timeline.filter(s => s.completado).length
   const timelineProgress = timeline.length > 0 ? Math.round((completedSteps / timeline.length) * 100) : 0
@@ -851,12 +855,23 @@ export const RoadmapDetail = () => {
               </span>
               {hdrStatus === 'inicial' ? 'Inicial' : hdrStatus === 'prueba_menu' ? 'Prueba y Menú' : 'Final'}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <a href="https://fiba-menus.vercel.app" target="_blank" rel="noopener noreferrer"
                 className="px-4 py-2 border border-amber-300 text-amber-700 text-xs font-bold uppercase tracking-widest rounded hover:bg-amber-50 transition-colors flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-sm">restaurant_menu</span>
                 FIBA Menús
               </a>
+              {/* View mode toggle */}
+              {!editMode && (
+                <button
+                  onClick={() => setViewMode(v => v === 'compact' ? 'full' : 'compact')}
+                  className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors flex items-center gap-1.5 ${
+                    viewMode === 'full' ? 'bg-primary text-on-primary' : 'border border-outline-variant text-on-surface hover:bg-surface-container-low'
+                  }`}>
+                  <span className="material-symbols-outlined text-sm">{viewMode === 'full' ? 'compress' : 'expand'}</span>
+                  {viewMode === 'full' ? 'Vista Compacta' : 'Vista Completa'}
+                </button>
+              )}
               <button
                 onClick={() => setShowHistory(h => !h)}
                 className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded transition-colors flex items-center gap-1.5 ${
@@ -893,7 +908,7 @@ export const RoadmapDetail = () => {
             <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">I. Menú de Degustación</h3>
 
             {/* Complementos */}
-            {(editMode || (menu.complementos && menu.complementos.length > 0)) && (
+            {(showAll || (menu.complementos && menu.complementos.length > 0)) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Complementos</p>
@@ -906,12 +921,15 @@ export const RoadmapDetail = () => {
                       {editMode && <button onClick={() => setEditedMenu(m => ({...m, complementos: (m.complementos||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
                     </div>
                   ))}
+                  {showAll && !(editMode ? editedMenu.complementos?.length : menu.complementos?.length) && (
+                    <p className="text-sm text-on-surface-variant/50 italic pl-2 border-l-2 border-dashed border-outline-variant/20">—</p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Aperitivos */}
-            {(editMode || (menu.aperitivos && menu.aperitivos.length > 0)) && (
+            {(showAll || (menu.aperitivos && menu.aperitivos.length > 0)) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Aperitivos & Bienvenida</p>
@@ -924,12 +942,15 @@ export const RoadmapDetail = () => {
                       {editMode && <button onClick={() => setEditedMenu(m => ({...m, aperitivos: (m.aperitivos||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
                     </div>
                   ))}
+                  {showAll && !(editMode ? editedMenu.aperitivos?.length : menu.aperitivos?.length) && (
+                    <p className="text-sm text-on-surface-variant/50 italic">—</p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Marisco */}
-            {(editMode || (menu.marisco && menu.marisco.length > 0)) && (
+            {(showAll || (menu.marisco && menu.marisco.length > 0)) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Marisco</p>
@@ -942,12 +963,15 @@ export const RoadmapDetail = () => {
                       {editMode && <button onClick={() => setEditedMenu(m => ({...m, marisco: (m.marisco||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
                     </div>
                   ))}
+                  {showAll && !(editMode ? editedMenu.marisco?.length : menu.marisco?.length) && (
+                    <p className="text-sm text-on-surface-variant/50 italic pl-2 border-l-2 border-dashed border-outline-variant/20">—</p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Tapas */}
-            {(editMode || (menu.tapa && menu.tapa.length > 0)) && (
+            {(showAll || (menu.tapa && menu.tapa.length > 0)) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Tapas</p>
@@ -960,12 +984,15 @@ export const RoadmapDetail = () => {
                       {editMode && <button onClick={() => setEditedMenu(m => ({...m, tapa: (m.tapa||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
                     </div>
                   ))}
+                  {showAll && !(editMode ? editedMenu.tapa?.length : menu.tapa?.length) && (
+                    <p className="text-sm text-on-surface-variant/50 italic pl-2 border-l-2 border-dashed border-outline-variant/20">—</p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Entrante */}
-            {(menu.entrante || editMode) && (
+            {(showAll || menu.entrante) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Entrante</p>
@@ -974,13 +1001,13 @@ export const RoadmapDetail = () => {
                 {editMode
                   ? <input value={editedMenu.entrante || ''} onChange={e => setEditedMenu(m => ({...m, entrante: e.target.value}))}
                       className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del entrante..." />
-                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.entrante}</p>
+                  : <p className={`text-sm italic bg-surface-container-low p-3 rounded ${menu.entrante ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{menu.entrante || '—'}</p>
                 }
               </div>
             )}
 
             {/* Pescado */}
-            {(menu.pescado || editMode) && (
+            {(showAll || menu.pescado) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Pescado</p>
@@ -989,13 +1016,13 @@ export const RoadmapDetail = () => {
                 {editMode
                   ? <input value={editedMenu.pescado || ''} onChange={e => setEditedMenu(m => ({...m, pescado: e.target.value}))}
                       className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del pescado..." />
-                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.pescado}</p>
+                  : <p className={`text-sm italic bg-surface-container-low p-3 rounded ${menu.pescado ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{menu.pescado || '—'}</p>
                 }
               </div>
             )}
 
             {/* Carne */}
-            {(menu.carne || editMode) && (
+            {(showAll || menu.carne) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Carne</p>
@@ -1004,13 +1031,13 @@ export const RoadmapDetail = () => {
                 {editMode
                   ? <input value={editedMenu.carne || ''} onChange={e => setEditedMenu(m => ({...m, carne: e.target.value}))}
                       className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del plato de carne..." />
-                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.carne}</p>
+                  : <p className={`text-sm italic bg-surface-container-low p-3 rounded ${menu.carne ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{menu.carne || '—'}</p>
                 }
               </div>
             )}
 
             {/* Postre */}
-            {(menu.postre || editMode) && (
+            {(showAll || menu.postre) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-widest text-primary">Postre & Tarta</p>
@@ -1019,52 +1046,85 @@ export const RoadmapDetail = () => {
                 {editMode
                   ? <input value={editedMenu.postre || ''} onChange={e => setEditedMenu(m => ({...m, postre: e.target.value}))}
                       className="w-full p-3 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Nombre del postre..." />
-                  : <p className="text-sm text-on-surface italic bg-surface-container-low p-3 rounded">{menu.postre}</p>
+                  : <p className={`text-sm italic bg-surface-container-low p-3 rounded ${menu.postre ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{menu.postre || '—'}</p>
                 }
               </div>
             )}
 
-            {menu.bodega && Object.values(menu.bodega).some(Boolean) && (
+            {/* Bodega */}
+            {(showAll || (menu.bodega && Object.values(menu.bodega).some(Boolean))) && (
               <div className="mb-6">
                 <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Bodega</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {menu.bodega.blanco && <div><span className="text-on-surface-variant">Blanco: </span><span className="text-on-surface">{menu.bodega.blanco}</span></div>}
-                  {menu.bodega.tinto && <div><span className="text-on-surface-variant">Tinto: </span><span className="text-on-surface">{menu.bodega.tinto}</span></div>}
-                  {menu.bodega.cava && <div><span className="text-on-surface-variant">Cava: </span><span className="text-on-surface">{menu.bodega.cava}</span></div>}
-                  {menu.bodega.otros && <div className="col-span-2"><span className="text-on-surface-variant">Otras: </span><span className="text-on-surface">{menu.bodega.otros}</span></div>}
-                </div>
+                {editMode ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['blanco','tinto','cava','otros'] as const).map(k => (
+                      <div key={k}>
+                        <label className="text-xs text-on-surface-variant uppercase tracking-wider block mb-1 capitalize">{k}</label>
+                        <input value={(editedMenu.bodega as Bodega)?.[k] || ''} onChange={e => setEditedMenu(m => ({...m, bodega: {...(m.bodega||{}), [k]: e.target.value}}))}
+                          className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder={`Vino ${k}...`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {(['blanco','tinto','cava','otros'] as const).map(k => (
+                      (showAll || menu.bodega?.[k]) && (
+                        <div key={k} className={k === 'otros' ? 'col-span-2' : ''}>
+                          <span className="text-on-surface-variant capitalize">{k}: </span>
+                          <span className={menu.bodega?.[k] ? 'text-on-surface' : 'text-on-surface-variant/50 italic'}>
+                            {menu.bodega?.[k] || '—'}
+                          </span>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* ═══ II. MENÚ INFANTIL ═══ */}
-          {menu.infantil && (menu.infantil.menu?.length || menu.infantil.postre) && (
+          {(showAll || (menu.infantil && (menu.infantil.menu?.length || menu.infantil.postre))) && (
             <div>
               <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">II. Menú Infantil</h3>
-              <div className="bg-amber-50 border border-amber-100 rounded-lg p-5">
-                {menu.infantil.menu && menu.infantil.menu.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-2">Platos</p>
-                    {menu.infantil.menu.filter(Boolean).map((item, i) => (
-                      <p key={i} className="text-sm text-on-surface italic">{item}</p>
-                    ))}
+              {editMode ? (
+                <div className="bg-amber-50 border border-amber-100 rounded-lg p-5 space-y-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-amber-800 block mb-2">Postre infantil</label>
+                    <input value={editedMenu.infantil?.postre || ''} onChange={e => setEditedMenu(m => ({...m, infantil: {...(m.infantil||{}), postre: e.target.value}}))}
+                      className="w-full p-2 border border-amber-200 rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Postre para niños..." />
                   </div>
-                )}
-                {menu.infantil.postre && (
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-amber-800 block mb-2">Notas infantil</label>
+                    <input value={editedMenu.infantil?.notas || ''} onChange={e => setEditedMenu(m => ({...m, infantil: {...(m.infantil||{}), notas: e.target.value}}))}
+                      className="w-full p-2 border border-amber-200 rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Notas sobre menú infantil..." />
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-100 rounded-lg p-5">
+                  {menu.infantil?.menu && menu.infantil.menu.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-2">Platos</p>
+                      {menu.infantil.menu.filter(Boolean).map((item, i) => (
+                        <p key={i} className="text-sm text-on-surface italic">{item}</p>
+                      ))}
+                    </div>
+                  )}
                   <div className="mb-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-1">Postre</p>
-                    <p className="text-sm text-on-surface italic">{menu.infantil.postre}</p>
+                    <p className={`text-sm italic ${menu.infantil?.postre ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{menu.infantil?.postre || '—'}</p>
                   </div>
-                )}
-                {menu.infantil.notas && (
-                  <p className="text-xs text-amber-700 mt-2 italic">{menu.infantil.notas}</p>
-                )}
-              </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-1">Notas</p>
+                    <p className={`text-xs italic ${menu.infantil?.notas ? 'text-amber-700' : 'text-amber-400'}`}>{menu.infantil?.notas || '—'}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* ═══ III. RECENA ═══ */}
-          {(editMode || (menu.recena && menu.recena.length > 0)) && (
+          {(showAll || (menu.recena && menu.recena.length > 0)) && (
             <div>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-headline text-2xl font-bold text-on-surface italic">III. Recena</h3>
@@ -1077,37 +1137,67 @@ export const RoadmapDetail = () => {
                     {editMode && <button onClick={() => setEditedMenu(m => ({...m, recena: (m.recena||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
                   </div>
                 ))}
+                {showAll && !(editMode ? editedMenu.recena?.length : menu.recena?.length) && (
+                  <p className="text-sm text-on-surface-variant/50 italic pl-2 border-l-2 border-dashed border-outline-variant/20">—</p>
+                )}
               </div>
             </div>
           )}
 
           {/* ═══ IV. MENÚS ESPECIALES ═══ */}
-          {specialRows.length > 0 && (
+          {(showAll || specialRows.length > 0) && (
             <div>
               <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">IV. Menús Especiales</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {specialRows.map(({ label, count }) => (
-                  <div key={label} className="bg-surface-container-low p-3 rounded-lg text-center">
-                    <p className="text-2xl font-bold font-headline text-on-surface">{count}</p>
-                    <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mt-1">{label}</p>
-                  </div>
-                ))}
-              </div>
+              {editMode ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {Object.entries(SPECIAL_LABELS).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">{label}</label>
+                      <input type="number" min="0"
+                        value={(editedMenu.special_menus as Record<string, number>)?.[key] || ''}
+                        onChange={e => setEditedMenu(m => ({...m, special_menus: {...(m.special_menus||{}), [key]: parseInt(e.target.value)||0}}))}
+                        className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder="0" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {specialRows.map(({ label, count }) => (
+                    <div key={label} className="bg-surface-container-low p-3 rounded-lg text-center">
+                      <p className={`text-2xl font-bold font-headline ${count > 0 ? 'text-on-surface' : 'text-on-surface-variant/40'}`}>{count}</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mt-1">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* ═══ V. PROTOCOLOS ═══ */}
-          {protoRows.length > 0 && (
+          {(showAll || protoRows.length > 0) && (
             <div>
               <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">V. Protocolos</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {protoRows.map(({ label, value }) => (
-                  <div key={label} className="flex gap-3 text-sm py-2 border-b border-outline-variant/10">
-                    <span className="font-bold text-on-surface uppercase text-xs tracking-wider min-w-[140px] shrink-0">{label}</span>
-                    <span className="text-on-surface-variant italic">{value}</span>
-                  </div>
-                ))}
-              </div>
+              {editMode ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {Object.entries(PROTOCOL_LABELS).map(([key, label]) => (
+                    <div key={key}>
+                      <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">{label}</label>
+                      <input value={(editedProtocols as Record<string, string>)[key] || ''}
+                        onChange={e => setEditedProtocols(p => ({...p, [key]: e.target.value}))}
+                        className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" placeholder={label} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {protoRows.map(({ label, value }) => (
+                    <div key={label} className="flex gap-3 text-sm py-2 border-b border-outline-variant/10">
+                      <span className="font-bold text-on-surface uppercase text-xs tracking-wider min-w-[140px] shrink-0">{label}</span>
+                      <span className={`italic ${value ? 'text-on-surface-variant' : 'text-on-surface-variant/40'}`}>{value || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
