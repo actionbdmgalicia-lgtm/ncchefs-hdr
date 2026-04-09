@@ -9,6 +9,10 @@ import {
   getDoc,
   doc
 } from 'firebase/firestore'
+import {
+  getAuth,
+  signInAnonymously
+} from 'firebase/auth'
 import type { FIBAPlato, FIBAGrupo } from '../types'
 
 // FIBA Firebase configuration
@@ -28,19 +32,38 @@ if (!fibaApp) {
 }
 
 const fibaDb = getFirestore(fibaApp)
+const fibaAuth = getAuth(fibaApp)
+
+// Ensure anonymous auth on FIBA app (needed if Firestore rules require auth)
+let fibaAuthReady = false
+async function ensureFibaAuth() {
+  if (fibaAuthReady) return
+  try {
+    if (!fibaAuth.currentUser) {
+      await signInAnonymously(fibaAuth)
+    }
+    fibaAuthReady = true
+  } catch (e) {
+    // Anonymous auth not enabled or not needed — continue anyway
+    console.warn('FIBA anonymous auth skipped:', e)
+    fibaAuthReady = true
+  }
+}
 
 /**
  * Get all grupos (categories) from FIBA
  */
 export async function getGrupos(): Promise<FIBAGrupo[]> {
+  await ensureFibaAuth()
   try {
     const snap = await getDocs(collection(fibaDb, 'grupos'))
+    console.log('[FIBA] grupos count:', snap.size)
     return snap.docs.map(d => ({
       id: d.id,
       ...d.data()
     })) as FIBAGrupo[]
   } catch (error) {
-    console.error('Error fetching FIBA grupos:', error)
+    console.error('[FIBA] Error fetching grupos:', error)
     return []
   }
 }
@@ -132,17 +155,25 @@ function extractPlato(id: string, data: Record<string, unknown>): FIBAPlato | nu
  * Get all platos
  */
 export async function getAllPlatos(): Promise<FIBAPlato[]> {
+  await ensureFibaAuth()
   try {
     const snap = await getDocs(collection(fibaDb, 'platos'))
+    console.log('[FIBA] platos raw count:', snap.size)
+    if (snap.size > 0) {
+      // Log first doc structure to debug
+      const first = snap.docs[0]
+      console.log('[FIBA] first doc id:', first.id, 'data keys:', Object.keys(first.data()))
+    }
     const platos: FIBAPlato[] = []
     snap.docs.forEach(d => {
       const plato = extractPlato(d.id, d.data() as Record<string, unknown>)
       if (plato) platos.push(plato)
     })
+    console.log('[FIBA] extracted platos:', platos.length)
     return platos
   } catch (error) {
-    console.error('Error fetching all platos:', error)
-    return []
+    console.error('[FIBA] Error fetching all platos:', error)
+    throw error // re-throw so Dishes page can show the real error
   }
 }
 
