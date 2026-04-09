@@ -1,122 +1,81 @@
-import {
-  initializeApp,
-  getApps,
-} from 'firebase/app'
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  getDoc,
-  doc
-} from 'firebase/firestore'
 import type { FIBAPlato, FIBAGrupo } from '../types'
 
-// FIBA Firebase configuration (Firestore rules: allow read: if true)
-const fibaConfig = {
-  apiKey: 'AIzaSyBrITPuq_PTJ9VR9fBBN1kGT8ul7rqoslc',
-  authDomain: 'fiba-menus.firebaseapp.com',
-  projectId: 'fiba-menus',
-  storageBucket: 'fiba-menus.firebasestorage.app',
-  messagingSenderId: '376886606551',
-  appId: '1:376886606551:web:52c857e3ae84e7a07ace92'
-}
+// Use Firestore REST API directly to avoid Firebase SDK's real-time channel CORS issues
+const FIBA_PROJECT = 'fiba-menus'
+const FIBA_API_KEY = 'AIzaSyBrITPuq_PTJ9VR9fBBN1kGT8ul7rqoslc'
+const FIBA_BASE = `https://firestore.googleapis.com/v1/projects/${FIBA_PROJECT}/databases/(default)/documents`
 
-// Initialize FIBA Firebase app
-let fibaApp = getApps().find(app => app.name === 'fiba')
-if (!fibaApp) {
-  fibaApp = initializeApp(fibaConfig, 'fiba')
-}
-
-const fibaDb = getFirestore(fibaApp)
-
-/**
- * Get all grupos (categories) from FIBA
- */
-export async function getGrupos(): Promise<FIBAGrupo[]> {
-
-  try {
-    const snap = await getDocs(collection(fibaDb, 'grupos'))
-    console.log('[FIBA] grupos count:', snap.size)
-    return snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    })) as FIBAGrupo[]
-  } catch (error) {
-    console.error('[FIBA] Error fetching grupos:', error)
-    return []
+// Firestore REST value → JS primitive
+function fromFirestoreValue(val: Record<string, unknown>): unknown {
+  if ('stringValue' in val) return val.stringValue
+  if ('integerValue' in val) return Number(val.integerValue)
+  if ('doubleValue' in val) return Number(val.doubleValue)
+  if ('booleanValue' in val) return val.booleanValue
+  if ('nullValue' in val) return null
+  if ('arrayValue' in val) {
+    const arr = val.arrayValue as { values?: Record<string, unknown>[] }
+    return (arr.values || []).map(v => fromFirestoreValue(v))
   }
-}
-
-/**
- * Search platos by nombre (name contains)
- */
-export async function searchFIBAPlatos(query: string): Promise<FIBAPlato[]> {
-  try {
-    const allPlatos = await getAllPlatos()
-    return allPlatos
-      .filter(p => p.nombre.toLowerCase().includes(query.toLowerCase()))
-      .slice(0, 20)
-  } catch (error) {
-    console.error('Error searching FIBA platos:', error)
-    return []
-  }
-}
-
-/**
- * Get all platos in a specific grupo
- */
-export async function getPlatosByGrupo(grupoId: string): Promise<FIBAPlato[]> {
-  try {
-    // Get grupo to get plato_ids
-    const grupoDoc = await getDoc(doc(fibaDb, 'grupos', grupoId))
-    if (!grupoDoc.exists()) {
-      console.warn(`Grupo ${grupoId} not found`)
-      return []
+  if ('mapValue' in val) {
+    const map = val.mapValue as { fields?: Record<string, Record<string, unknown>> }
+    const result: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(map.fields || {})) {
+      result[k] = fromFirestoreValue(v)
     }
-
-    const grupoData = grupoDoc.data() as FIBAGrupo
-    const platoIds = grupoData.plato_ids || []
-
-    // Fetch each plato
-    const platos = await Promise.all(
-      platoIds.map(pId => getDoc(doc(fibaDb, 'platos', pId)))
-    )
-
-    return platos
-      .filter(snap => snap.exists())
-      .map(snap => extractPlato(snap.id, snap.data() as Record<string, unknown>))
-      .filter((p): p is FIBAPlato => p !== null)
-  } catch (error) {
-    console.error(`Error fetching platos for grupo ${grupoId}:`, error)
-    return []
+    return result
   }
+  return null
 }
 
-/**
- * Get a single plato by ID
- */
-export async function getPlatoById(platoId: string): Promise<FIBAPlato | null> {
-  try {
-    const platoDoc = await getDoc(doc(fibaDb, 'platos', platoId))
-    if (!platoDoc.exists()) {
-      return null
-    }
-
-    return extractPlato(platoDoc.id, platoDoc.data() as Record<string, unknown>)
-  } catch (error) {
-    console.error(`Error fetching plato ${platoId}:`, error)
-    return null
+// Convert a Firestore REST document to plain JS object
+function fromFirestoreDoc(doc: Record<string, unknown>): Record<string, unknown> {
+  const fields = (doc.fields || {}) as Record<string, Record<string, unknown>>
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(fields)) {
+    result[k] = fromFirestoreValue(v)
   }
+  return result
 }
 
-// Helper: extract plato from Firestore document data
-// FIBA docs may store data directly or inside a 'value' array
+// GET all documents from a collection via REST
+async function getCollection(collectionName: string): Promise<Array<{ id: string; data: Record<string, unknown> }>> {
+  const url = `${FIBA_BASE}/${collectionName}?key=${FIBA_API_KEY}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`FIBA REST ${collectionName} ${res.status}: ${text}`)
+  }
+  const json = await res.json() as { documents?: Array<Record<string, unknown>> }
+  const docs = json.documents || []
+  return docs.map(d => {
+    const name = d.name as string
+    const id = name.split('/').pop() || ''
+    return { id, data: fromFirestoreDoc(d) }
+  })
+}
+
+// GET a single document via REST
+async function getDocument(collectionName: string, docId: string): Promise<{ id: string; data: Record<string, unknown> } | null> {
+  const url = `${FIBA_BASE}/${collectionName}/${docId}?key=${FIBA_API_KEY}`
+  const res = await fetch(url)
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`FIBA REST ${collectionName}/${docId} ${res.status}: ${text}`)
+  }
+  const d = await res.json() as Record<string, unknown>
+  const name = d.name as string
+  const id = name.split('/').pop() || ''
+  return { id, data: fromFirestoreDoc(d) }
+}
+
+// Extract a FIBAPlato from document data (handles both flat and value[] structures)
 function extractPlato(id: string, data: Record<string, unknown>): FIBAPlato | null {
-  // Structure 1: { nombre, precio, ... }
+  // Structure 1: { nombre, precio }
   if (typeof data.nombre === 'string') {
     return { id, nombre: data.nombre, precio: data.precio as number }
   }
-  // Structure 2: { value: [{ id, nombre, precio }], updatedAt }
+  // Structure 2: { value: [{ id, nombre, precio }] }
   if (Array.isArray(data.value) && data.value.length > 0) {
     const item = data.value[0] as Record<string, unknown>
     if (typeof item.nombre === 'string') {
@@ -131,43 +90,99 @@ function extractPlato(id: string, data: Record<string, unknown>): FIBAPlato | nu
 }
 
 /**
+ * Get all grupos (categories) from FIBA
+ */
+export async function getGrupos(): Promise<FIBAGrupo[]> {
+  try {
+    const docs = await getCollection('grupos')
+    console.log('[FIBA] grupos count:', docs.length)
+    return docs.map(({ id, data }) => ({ id, ...data })) as FIBAGrupo[]
+  } catch (error) {
+    console.error('[FIBA] Error fetching grupos:', error)
+    return []
+  }
+}
+
+/**
  * Get all platos
  */
 export async function getAllPlatos(): Promise<FIBAPlato[]> {
-
-  try {
-    const snap = await getDocs(collection(fibaDb, 'platos'))
-    console.log('[FIBA] platos raw count:', snap.size)
-    if (snap.size > 0) {
-      // Log first doc structure to debug
-      const first = snap.docs[0]
-      console.log('[FIBA] first doc id:', first.id, 'data keys:', Object.keys(first.data()))
-    }
-    const platos: FIBAPlato[] = []
-    snap.docs.forEach(d => {
-      const plato = extractPlato(d.id, d.data() as Record<string, unknown>)
-      if (plato) platos.push(plato)
-    })
-    console.log('[FIBA] extracted platos:', platos.length)
-    return platos
-  } catch (error) {
-    console.error('[FIBA] Error fetching all platos:', error)
-    throw error // re-throw so Dishes page can show the real error
+  const docs = await getCollection('platos')
+  console.log('[FIBA] platos raw count:', docs.length)
+  if (docs.length > 0) {
+    console.log('[FIBA] first doc id:', docs[0].id, 'keys:', Object.keys(docs[0].data))
   }
+  const platos: FIBAPlato[] = []
+  docs.forEach(({ id, data }) => {
+    const p = extractPlato(id, data)
+    if (p) platos.push(p)
+  })
+  console.log('[FIBA] extracted platos:', platos.length)
+  return platos
+}
+
+/**
+ * Search platos by nombre
+ */
+export async function searchFIBAPlatos(query: string): Promise<FIBAPlato[]> {
+  try {
+    const all = await getAllPlatos()
+    return all.filter(p => p.nombre.toLowerCase().includes(query.toLowerCase())).slice(0, 20)
+  } catch (error) {
+    console.error('[FIBA] Error searching platos:', error)
+    return []
+  }
+}
+
+/**
+ * Get platos for a specific grupo
+ */
+export async function getPlatosByGrupo(grupoId: string): Promise<FIBAPlato[]> {
+  try {
+    const grupoDoc = await getDocument('grupos', grupoId)
+    if (!grupoDoc) return []
+    const platoIds = (grupoDoc.data.plato_ids as string[]) || []
+    const results = await Promise.all(platoIds.map(pId => getDocument('platos', pId)))
+    return results
+      .filter((d): d is { id: string; data: Record<string, unknown> } => d !== null)
+      .map(({ id, data }) => extractPlato(id, data))
+      .filter((p): p is FIBAPlato => p !== null)
+  } catch (error) {
+    console.error(`[FIBA] Error fetching platos for grupo ${grupoId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Get a single plato by ID
+ */
+export async function getPlatoById(platoId: string): Promise<FIBAPlato | null> {
+  try {
+    const d = await getDocument('platos', platoId)
+    if (!d) return null
+    return extractPlato(d.id, d.data)
+  } catch (error) {
+    console.error(`[FIBA] Error fetching plato ${platoId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Search platos globally
+ */
+export async function searchGlobalPlatos(searchTerm: string): Promise<FIBAPlato[]> {
+  return searchFIBAPlatos(searchTerm)
 }
 
 /**
  * Get menu templates (menus_tipo)
  */
-export async function getMenuTemplates(): Promise<any[]> {
+export async function getMenuTemplates(): Promise<Record<string, unknown>[]> {
   try {
-    const snap = await getDocs(collection(fibaDb, 'menus_tipo'))
-    return snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    }))
+    const docs = await getCollection('menus_tipo')
+    return docs.map(({ id, data }) => ({ id, ...data }))
   } catch (error) {
-    console.error('Error fetching menu templates:', error)
+    console.error('[FIBA] Error fetching menu templates:', error)
     return []
   }
 }
@@ -175,60 +190,25 @@ export async function getMenuTemplates(): Promise<any[]> {
 /**
  * Get a single menu template by ID
  */
-export async function getMenuTemplate(menuId: string): Promise<any | null> {
+export async function getMenuTemplate(menuId: string): Promise<Record<string, unknown> | null> {
   try {
-    const menuDoc = await getDoc(doc(fibaDb, 'menus_tipo', menuId))
-    if (!menuDoc.exists()) {
-      return null
-    }
-
-    return {
-      id: menuDoc.id,
-      ...menuDoc.data()
-    }
+    const d = await getDocument('menus_tipo', menuId)
+    if (!d) return null
+    return { id: d.id, ...d.data }
   } catch (error) {
-    console.error(`Error fetching menu template ${menuId}:`, error)
+    console.error(`[FIBA] Error fetching menu template ${menuId}:`, error)
     return null
   }
 }
 
 /**
- * Get all platos for a menu template slot
- * A slot has a catalogo array of grupo_ids
+ * Get platos for a menu template slot (array of grupo_ids)
  */
-export async function getPlatosByMenuSlot(
-  catalogo: string[]
-): Promise<FIBAPlato[]> {
-  try {
-    const allPlatos: FIBAPlato[] = []
-
-    // Fetch platos for each grupo in the catalogo
-    for (const grupoId of catalogo) {
-      const platos = await getPlatosByGrupo(grupoId)
-      allPlatos.push(...platos)
-    }
-
-    return allPlatos
-  } catch (error) {
-    console.error('Error fetching platos for menu slot:', error)
-    return []
+export async function getPlatosByMenuSlot(catalogo: string[]): Promise<FIBAPlato[]> {
+  const all: FIBAPlato[] = []
+  for (const grupoId of catalogo) {
+    const platos = await getPlatosByGrupo(grupoId)
+    all.push(...platos)
   }
-}
-
-/**
- * Search platos globally (returns top 30 matches)
- */
-export async function searchGlobalPlatos(searchTerm: string): Promise<FIBAPlato[]> {
-  try {
-    const allPlatos = await getAllPlatos()
-
-    const filtered = allPlatos.filter(p =>
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-
-    return filtered.slice(0, 30)
-  } catch (error) {
-    console.error('Error in global search:', error)
-    return []
-  }
+  return all
 }
