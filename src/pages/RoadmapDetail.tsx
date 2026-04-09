@@ -892,45 +892,73 @@ export const RoadmapDetail = () => {
           <div>
             <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">I. Menú de Degustación</h3>
 
-            {menu.complementos && menu.complementos.length > 0 && (
+            {/* Complementos */}
+            {(editMode || (menu.complementos && menu.complementos.length > 0)) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Complementos</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Complementos</p>
+                  {editMode && <button onClick={() => openFIBAPicker('complementos')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
                 <div className="space-y-1">
-                  {menu.complementos.filter(Boolean).map((item, i) => (
-                    <p key={i} className="text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                  {(editMode ? editedMenu.complementos : menu.complementos)?.filter(Boolean).map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <p className="flex-1 text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                      {editMode && <button onClick={() => setEditedMenu(m => ({...m, complementos: (m.complementos||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {menu.aperitivos && menu.aperitivos.length > 0 && (
+            {/* Aperitivos */}
+            {(editMode || (menu.aperitivos && menu.aperitivos.length > 0)) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Aperitivos & Bienvenida</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Aperitivos & Bienvenida</p>
+                  {editMode && <button onClick={() => openFIBAPicker('aperitivos')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                  {menu.aperitivos.filter(Boolean).map((item, i) => (
-                    <p key={i} className="text-sm text-on-surface italic">{item.trim()}</p>
+                  {(editMode ? editedMenu.aperitivos : menu.aperitivos)?.filter(Boolean).map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <p className="flex-1 text-sm text-on-surface italic">{item.trim()}</p>
+                      {editMode && <button onClick={() => setEditedMenu(m => ({...m, aperitivos: (m.aperitivos||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {menu.marisco && menu.marisco.length > 0 && (
+            {/* Marisco */}
+            {(editMode || (menu.marisco && menu.marisco.length > 0)) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Marisco</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Marisco</p>
+                  {editMode && <button onClick={() => openFIBAPicker('marisco')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
                 <div className="space-y-1">
-                  {menu.marisco.filter(Boolean).map((item, i) => (
-                    <p key={i} className="text-sm text-on-surface italic">{item}</p>
+                  {(editMode ? editedMenu.marisco : menu.marisco)?.filter(Boolean).map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <p className="flex-1 text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                      {editMode && <button onClick={() => setEditedMenu(m => ({...m, marisco: (m.marisco||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {menu.tapa && menu.tapa.length > 0 && (
+            {/* Tapas */}
+            {(editMode || (menu.tapa && menu.tapa.length > 0)) && (
               <div className="mb-6">
-                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Tapas</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary">Tapas</p>
+                  {editMode && <button onClick={() => openFIBAPicker('tapa')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+                </div>
                 <div className="space-y-1">
-                  {menu.tapa.filter(Boolean).map((item, i) => (
-                    <p key={i} className="text-sm text-on-surface italic">{item}</p>
+                  {(editMode ? editedMenu.tapa : menu.tapa)?.filter(Boolean).map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <p className="flex-1 text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                      {editMode && <button onClick={() => setEditedMenu(m => ({...m, tapa: (m.tapa||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1036,12 +1064,18 @@ export const RoadmapDetail = () => {
           )}
 
           {/* ═══ III. RECENA ═══ */}
-          {menu.recena && menu.recena.length > 0 && (
+          {(editMode || (menu.recena && menu.recena.length > 0)) && (
             <div>
-              <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">III. Recena</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-headline text-2xl font-bold text-on-surface italic">III. Recena</h3>
+                {editMode && <button onClick={() => openFIBAPicker('recena')} className="text-xs text-primary flex items-center gap-1 hover:underline"><span className="material-symbols-outlined text-sm">search</span>Buscar en FIBA</button>}
+              </div>
               <div className="space-y-1">
-                {menu.recena.filter(Boolean).map((item, i) => (
-                  <p key={i} className="text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                {(editMode ? editedMenu.recena : menu.recena)?.filter(Boolean).map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <p className="flex-1 text-sm text-on-surface italic pl-2 border-l-2 border-primary/30">{item}</p>
+                    {editMode && <button onClick={() => setEditedMenu(m => ({...m, recena: (m.recena||[]).filter((_,j) => j !== i)}))} className="text-on-surface-variant hover:text-red-500"><span className="material-symbols-outlined text-sm">close</span></button>}
+                  </div>
                 ))}
               </div>
             </div>

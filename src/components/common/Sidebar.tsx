@@ -62,6 +62,19 @@ export const Sidebar = () => {
             Admin
           </Link>
         )}
+
+        {/* External FIBA Menus link */}
+        <div className="mt-2 pt-2 border-t border-outline-variant/10">
+          <a
+            href="https://fiba-menus.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg font-label font-medium text-sm tracking-wide text-amber-700 hover:text-amber-900 hover:bg-amber-50 transition-all"
+          >
+            <span className="material-symbols-outlined">open_in_new</span>
+            FIBA Menús
+          </a>
+        </div>
       </nav>
 
       {/* User Info & Logout */}
