@@ -7,7 +7,7 @@ export const Header = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-md flex justify-between items-center w-full px-8 py-4 border-b border-outline-variant/10 md:ml-64 font-body">
+      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-md flex justify-between items-center w-full md:w-[calc(100%-16rem)] px-8 py-4 border-b border-outline-variant/10 md:ml-64 font-body">
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile Menu Button */}
           <button className="material-symbols-outlined text-on-surface-variant cursor-pointer md:hidden">
