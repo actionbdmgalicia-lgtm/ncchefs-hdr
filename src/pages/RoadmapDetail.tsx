@@ -9,7 +9,9 @@ import { VersionHistoryPanel } from '../components/weddings/VersionHistoryPanel'
 import { StateTransition } from '../components/weddings/StateTransition'
 import { FIBAMenuPicker } from '../components/weddings/FIBAMenuPicker'
 import { saveWeddingVersion, updateWeddingStatus } from '../services/weddingVersionService'
-import type { WeddingVersion, WeddingHDRStatus, WeddingEvaluation, FIBAPlato } from '../types'
+import type { WeddingVersion, WeddingHDRStatus, WeddingEvaluation, FIBAPlato,
+  BarraLibreMusica, UbicacionMontajes, ContratacionesExternas,
+  FechasImportantes, ClienteInfo, CuentasDetalle, ExtraCuenta } from '../types'
 
 // ── Timeline types ──────────────────────────────
 type TimelineCategoria =
@@ -66,6 +68,13 @@ interface Wedding {
   start_time?: string; end_time?: string; service_type?: string
   menu?: Menu; protocols?: Protocols; notes?: string[]
   financial?: Financial; timeline?: TimelineStep[]
+  // Extended HDR sections
+  barra_libre_musica?: BarraLibreMusica
+  ubicacion_montajes?: UbicacionMontajes
+  contrataciones_externas?: ContratacionesExternas
+  fechas_importantes?: FechasImportantes
+  cliente_info?: ClienteInfo
+  cuentas_detalle?: CuentasDetalle
 }
 
 // ── Constants ───────────────────────────────────
@@ -571,6 +580,12 @@ export const RoadmapDetail = () => {
   const [editedMenu, setEditedMenu] = useState<Menu>({})
   const [editedProtocols, setEditedProtocols] = useState<Protocols>({})
   const [editedNotes, setEditedNotes] = useState<string>('')
+  const [editedBarra, setEditedBarra] = useState<BarraLibreMusica>({})
+  const [editedUbicacion, setEditedUbicacion] = useState<UbicacionMontajes>({})
+  const [editedContrataciones, setEditedContrataciones] = useState<ContratacionesExternas>({})
+  const [editedFechas, setEditedFechas] = useState<FechasImportantes>({})
+  const [editedClienteInfo, setEditedClienteInfo] = useState<ClienteInfo>({})
+  const [editedCuentasDetalle, setEditedCuentasDetalle] = useState<CuentasDetalle>({})
   const [showHistory, setShowHistory] = useState(false)
   const [versions, setVersions] = useState<WeddingVersion[]>([])
   const [hdrStatus, setHdrStatus] = useState<WeddingHDRStatus>('inicial')
@@ -639,6 +654,12 @@ export const RoadmapDetail = () => {
     setEditedMenu(wedding.menu || {})
     setEditedProtocols(wedding.protocols || {})
     setEditedNotes('')
+    setEditedBarra(wedding.barra_libre_musica || {})
+    setEditedUbicacion(wedding.ubicacion_montajes || {})
+    setEditedContrataciones(wedding.contrataciones_externas || {})
+    setEditedFechas(wedding.fechas_importantes || {})
+    setEditedClienteInfo(wedding.cliente_info || {})
+    setEditedCuentasDetalle(wedding.cuentas_detalle || {})
     setEditMode(true)
   }
 
@@ -647,6 +668,12 @@ export const RoadmapDetail = () => {
     setEditedMenu(wedding.menu || {})
     setEditedProtocols(wedding.protocols || {})
     setEditedNotes('')
+    setEditedBarra(wedding.barra_libre_musica || {})
+    setEditedUbicacion(wedding.ubicacion_montajes || {})
+    setEditedContrataciones(wedding.contrataciones_externas || {})
+    setEditedFechas(wedding.fechas_importantes || {})
+    setEditedClienteInfo(wedding.cliente_info || {})
+    setEditedCuentasDetalle(wedding.cuentas_detalle || {})
     setEditMode(false)
   }
 
@@ -655,12 +682,14 @@ export const RoadmapDetail = () => {
     setSaving(true)
     try {
       const changes: Record<string, unknown> = {}
-      if (JSON.stringify(editedMenu) !== JSON.stringify(wedding.menu)) {
-        changes.menu = editedMenu
-      }
-      if (JSON.stringify(editedProtocols) !== JSON.stringify(wedding.protocols)) {
-        changes.protocols = editedProtocols
-      }
+      if (JSON.stringify(editedMenu) !== JSON.stringify(wedding.menu)) changes.menu = editedMenu
+      if (JSON.stringify(editedProtocols) !== JSON.stringify(wedding.protocols)) changes.protocols = editedProtocols
+      if (JSON.stringify(editedBarra) !== JSON.stringify(wedding.barra_libre_musica)) changes.barra_libre_musica = editedBarra
+      if (JSON.stringify(editedUbicacion) !== JSON.stringify(wedding.ubicacion_montajes)) changes.ubicacion_montajes = editedUbicacion
+      if (JSON.stringify(editedContrataciones) !== JSON.stringify(wedding.contrataciones_externas)) changes.contrataciones_externas = editedContrataciones
+      if (JSON.stringify(editedFechas) !== JSON.stringify(wedding.fechas_importantes)) changes.fechas_importantes = editedFechas
+      if (JSON.stringify(editedClienteInfo) !== JSON.stringify(wedding.cliente_info)) changes.cliente_info = editedClienteInfo
+      if (JSON.stringify(editedCuentasDetalle) !== JSON.stringify(wedding.cuentas_detalle)) changes.cuentas_detalle = editedCuentasDetalle
 
       if (Object.keys(changes).length === 0) {
         setEditMode(false)
@@ -672,7 +701,13 @@ export const RoadmapDetail = () => {
       const newVersionId = await saveWeddingVersion(id, changes, currentUser?.uid || '', userName, 'Edición manual')
 
       // Update local state
-      setWedding(w => w ? { ...w, menu: editedMenu, protocols: editedProtocols } : w)
+      setWedding(w => w ? {
+        ...w,
+        menu: editedMenu, protocols: editedProtocols,
+        barra_libre_musica: editedBarra, ubicacion_montajes: editedUbicacion,
+        contrataciones_externas: editedContrataciones, fechas_importantes: editedFechas,
+        cliente_info: editedClienteInfo, cuentas_detalle: editedCuentasDetalle
+      } : w)
       const newVersion: WeddingVersion = {
         id: newVersionId,
         timestamp: new Date(),
@@ -1318,6 +1353,304 @@ export const RoadmapDetail = () => {
               Publicar Nota
             </button>
           </div>
+
+          {/* ═══ VIII. BARRA LIBRE Y MÚSICA ═══ */}
+          {(showAll || Object.values(wedding.barra_libre_musica || {}).some(Boolean)) && (() => {
+            const bl = editMode ? editedBarra : (wedding.barra_libre_musica || {})
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">VIII. Barra Libre y Música</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { key: 'inicio_barra', label: 'Inicio Barra Libre', type: 'time' },
+                    { key: 'cierre_barra', label: 'Cierre Barra Libre', type: 'time' },
+                    { key: 'dj', label: 'DJ', type: 'text' },
+                    { key: 'otros', label: 'Otros (Banda, Orquesta...)', type: 'text' },
+                  ].map(({ key, label, type }) => (
+                    <div key={key}>
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">{label}</p>
+                      {editMode
+                        ? <input type={type} value={(bl as Record<string,string>)[key] || ''}
+                            onChange={e => setEditedBarra(b => ({...b, [key]: e.target.value}))}
+                            className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                        : <p className={`text-sm italic ${(bl as Record<string,string>)[key] ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>
+                            {(bl as Record<string,string>)[key] || '—'}
+                          </p>
+                      }
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══ IX. UBICACIÓN Y MONTAJES ═══ */}
+          {(showAll || Object.values(wedding.ubicacion_montajes || {}).some(v => v && (typeof v !== 'object' || Object.values(v).some(Boolean)))) && (() => {
+            const ub = editMode ? editedUbicacion : (wedding.ubicacion_montajes || {})
+            const ap = ub.aperitivo || {}
+            const bq = ub.banquete || {}
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">IX. Ubicación y Montajes</h3>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { key: 'minutas', label: 'Minutas / Seating Plan' },
+                      { key: 'seating_plan', label: 'Modelo Seating Plan' },
+                      { key: 'decoraciones_generales', label: 'Decoraciones Generales' },
+                    ].map(({ key, label }) => (
+                      <div key={key}>
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">{label}</p>
+                        {editMode
+                          ? <input value={(ub as Record<string,string>)[key] || ''}
+                              onChange={e => setEditedUbicacion(u => ({...u, [key]: e.target.value}))}
+                              className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                          : <p className={`text-sm italic ${(ub as Record<string,string>)[key] ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>
+                              {(ub as Record<string,string>)[key] || '—'}
+                            </p>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-3">Aperitivo</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-3 border-l-2 border-amber-200">
+                      {[
+                        { key: 'ubicacion', label: 'Ubicación' },
+                        { key: 'manteleria', label: 'Mantelería' },
+                      ].map(({ key, label }) => (
+                        <div key={key}>
+                          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">{label}</p>
+                          {editMode
+                            ? <input value={(ap as Record<string,string>)[key] || ''}
+                                onChange={e => setEditedUbicacion(u => ({...u, aperitivo: {...(u.aperitivo||{}), [key]: e.target.value}}))}
+                                className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                            : <p className={`text-sm italic ${(ap as Record<string,string>)[key] ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>
+                                {(ap as Record<string,string>)[key] || '—'}
+                              </p>
+                          }
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-green-700 mb-3">Banquete</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-3 border-l-2 border-green-200">
+                      {[
+                        { key: 'manteleria', label: 'Mantelería', type: 'text' },
+                        { key: 'bajoplato', label: 'Bajoplato', type: 'text' },
+                        { key: 'flores', label: 'Flores', type: 'text' },
+                        { key: 'decoraciones', label: 'Decoraciones', type: 'text' },
+                      ].map(({ key, label }) => (
+                        <div key={key}>
+                          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">{label}</p>
+                          {editMode
+                            ? <input value={(bq as Record<string,string>)[key] || ''}
+                                onChange={e => setEditedUbicacion(u => ({...u, banquete: {...(u.banquete||{}), [key]: e.target.value}}))}
+                                className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                            : <p className={`text-sm italic ${(bq as Record<string,string>)[key] ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>
+                                {(bq as Record<string,string>)[key] || '—'}
+                              </p>
+                          }
+                        </div>
+                      ))}
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Nº Mesas</p>
+                        {editMode
+                          ? <input type="number" min="0" value={bq.num_mesas || ''}
+                              onChange={e => setEditedUbicacion(u => ({...u, banquete: {...(u.banquete||{}), num_mesas: parseInt(e.target.value)||undefined}}))}
+                              className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                          : <p className={`text-sm italic ${bq.num_mesas ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{bq.num_mesas || '—'}</p>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══ X. CONTRATACIONES EXTERNAS ═══ */}
+          {(showAll || Object.values(wedding.contrataciones_externas || {}).some(Boolean)) && (() => {
+            const ct = editMode ? editedContrataciones : (wedding.contrataciones_externas || {})
+            const fields: { key: keyof ContratacionesExternas; label: string; icon: string }[] = [
+              { key: 'fotografo', label: 'Fotógrafo', icon: 'photo_camera' },
+              { key: 'video', label: 'Vídeo', icon: 'videocam' },
+              { key: 'animacion', label: 'Animación', icon: 'theater_comedy' },
+              { key: 'autobuses', label: 'Autobuses', icon: 'directions_bus' },
+              { key: 'bandas', label: 'Bandas', icon: 'queue_music' },
+              { key: 'otros', label: 'Otros', icon: 'more_horiz' },
+            ]
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">X. Contrataciones Externas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {fields.map(({ key, label, icon }) => (
+                    <div key={key} className="flex gap-3">
+                      <span className="material-symbols-outlined text-primary mt-1 shrink-0">{icon}</span>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">{label}</p>
+                        {editMode
+                          ? <input value={ct[key] || ''}
+                              onChange={e => setEditedContrataciones(c => ({...c, [key]: e.target.value}))}
+                              className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                              placeholder={`Nombre / empresa...`} />
+                          : <p className={`text-sm italic ${ct[key] ? 'text-on-surface' : 'text-on-surface-variant/50'}`}>{ct[key] || '—'}</p>
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══ XI. FECHAS IMPORTANTES ═══ */}
+          {(showAll || Object.values(wedding.fechas_importantes || {}).some(Boolean)) && (() => {
+            const fi = editMode ? editedFechas : (wedding.fechas_importantes || {})
+            const fields: { key: keyof FechasImportantes; label: string }[] = [
+              { key: 'confirmacion_invitados', label: 'Último día confirmación nº invitados' },
+              { key: 'ingreso_inicial', label: 'Fecha ingreso inicial' },
+              { key: 'ingreso_restante', label: 'Fecha ingreso restante' },
+            ]
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">XI. Fechas Importantes</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {fields.map(({ key, label }) => (
+                    <div key={key} className="bg-amber-50 border border-amber-100 rounded-lg p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-amber-800 mb-2">{label}</p>
+                      {editMode
+                        ? <input type="date" value={fi[key] || ''}
+                            onChange={e => setEditedFechas(f => ({...f, [key]: e.target.value}))}
+                            className="w-full p-2 border border-amber-200 rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none bg-white" />
+                        : <p className={`text-sm font-bold ${fi[key] ? 'text-amber-900' : 'text-amber-400 italic'}`}>
+                            {fi[key] ? new Date(fi[key]!).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                          </p>
+                      }
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══ XII. CLIENTES ═══ */}
+          {(showAll || Object.values(wedding.cliente_info || {}).some(Boolean)) && (() => {
+            const ci = editMode ? editedClienteInfo : (wedding.cliente_info || {})
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">XII. Datos Clientes</h3>
+                <div className="bg-surface-container-low rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {([
+                    { key: 'nombres', label: 'Nombres completos', icon: 'person', multiline: true },
+                    { key: 'telefonos', label: 'Teléfonos', icon: 'phone', multiline: false },
+                    { key: 'mails', label: 'Emails', icon: 'email', multiline: false },
+                    { key: 'direccion', label: 'Dirección', icon: 'home', multiline: true },
+                  ] as const).map(({ key, label, icon, multiline }) => (
+                    <div key={key}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="material-symbols-outlined text-primary text-sm">{icon}</span>
+                        <p className="text-xs font-bold uppercase tracking-widest text-primary">{label}</p>
+                      </div>
+                      {editMode
+                        ? multiline
+                          ? <textarea value={ci[key] || ''} rows={2}
+                              onChange={e => setEditedClienteInfo(c => ({...c, [key]: e.target.value}))}
+                              className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-none" />
+                          : <input value={ci[key] || ''}
+                              onChange={e => setEditedClienteInfo(c => ({...c, [key]: e.target.value}))}
+                              className="w-full p-2 border border-outline-variant rounded text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                        : <p className={`text-sm ${ci[key] ? 'text-on-surface' : 'text-on-surface-variant/50 italic'}`}>{ci[key] || '—'}</p>
+                      }
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══ XIII. CUENTAS DETALLE ═══ */}
+          {(showAll || (wedding.cuentas_detalle && (wedding.cuentas_detalle.precio_adulto || (wedding.cuentas_detalle.extras?.length || 0) > 0))) && (() => {
+            const cd = editMode ? editedCuentasDetalle : (wedding.cuentas_detalle || {})
+            const extras = (cd.extras || []) as ExtraCuenta[]
+            return (
+              <div>
+                <h3 className="font-headline text-2xl font-bold text-on-surface mb-6 italic">XIII. Cuentas</h3>
+                {/* Base prices */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  {([
+                    { key: 'precio_adulto', label: 'Precio Adulto' },
+                    { key: 'precio_nino', label: 'Precio Niño' },
+                    { key: 'precio_profesional', label: 'Precio Profesional' },
+                  ] as const).map(({ key, label }) => (
+                    <div key={key} className="bg-stone-800 text-white rounded-lg p-4 text-center">
+                      <p className="text-white/60 text-xs uppercase tracking-wider mb-2">{label}</p>
+                      {editMode
+                        ? <input type="number" min="0" step="0.01" value={cd[key] || ''}
+                            onChange={e => setEditedCuentasDetalle(c => ({...c, [key]: parseFloat(e.target.value)||undefined}))}
+                            className="w-full p-2 border border-white/20 rounded text-sm bg-white/10 text-white text-center focus:outline-none focus:ring-2 focus:ring-primary" />
+                        : <p className="text-2xl font-bold font-headline">{cd[key] ? `${cd[key]} €` : '—'}</p>
+                      }
+                    </div>
+                  ))}
+                </div>
+                {/* Extras table */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Extras y Suplementos</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-outline-variant/20">
+                          <th className="text-left py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Concepto</th>
+                          <th className="text-right py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">€/ud</th>
+                          <th className="text-right py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Uds prev.</th>
+                          <th className="text-right py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Total prev.</th>
+                          <th className="text-right py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Uds real</th>
+                          <th className="text-right py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Total real</th>
+                          {editMode && <th />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {extras.map((ex, i) => (
+                          <tr key={i} className="border-b border-outline-variant/10">
+                            {editMode ? (
+                              <>
+                                <td><input value={ex.concepto} onChange={e => setEditedCuentasDetalle(c => ({...c, extras: extras.map((x,j) => j===i ? {...x, concepto: e.target.value} : x)}))} className="w-full p-1 border border-outline-variant rounded text-sm" /></td>
+                                {(['precio_unitario','unidades_previstas','total_previsto','unidades_reales','total_real'] as const).map(k => (
+                                  <td key={k} className="text-right"><input type="number" value={ex[k] ?? ''} onChange={e => setEditedCuentasDetalle(c => ({...c, extras: extras.map((x,j) => j===i ? {...x, [k]: parseFloat(e.target.value)||undefined} : x)}))} className="w-20 p-1 border border-outline-variant rounded text-sm text-right" /></td>
+                                ))}
+                                <td><button onClick={() => setEditedCuentasDetalle(c => ({...c, extras: extras.filter((_,j) => j!==i)}))} className="text-red-400 hover:text-red-600 ml-2"><span className="material-symbols-outlined text-sm">delete</span></button></td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-2 font-medium">{ex.concepto}</td>
+                                <td className="text-right py-2 text-on-surface-variant">{ex.precio_unitario ? `${ex.precio_unitario} €` : '—'}</td>
+                                <td className="text-right py-2 text-on-surface-variant">{ex.unidades_previstas ?? '—'}</td>
+                                <td className="text-right py-2">{ex.total_previsto ? `${ex.total_previsto} €` : '—'}</td>
+                                <td className="text-right py-2 text-on-surface-variant">{ex.unidades_reales ?? '—'}</td>
+                                <td className="text-right py-2 font-bold">{ex.total_real ? `${ex.total_real} €` : '—'}</td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {extras.length === 0 && !editMode && (
+                      <p className="text-sm text-on-surface-variant/50 italic py-3 text-center">Sin extras registrados</p>
+                    )}
+                  </div>
+                  {editMode && (
+                    <button onClick={() => setEditedCuentasDetalle(c => ({...c, extras: [...(c.extras||[]), { concepto: '' }]}))}
+                      className="mt-3 flex items-center gap-1 text-xs text-primary font-bold hover:underline">
+                      <span className="material-symbols-outlined text-sm">add</span>Añadir línea
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+
         </div>
 
         {/* ── RIGHT COLUMN ── */}

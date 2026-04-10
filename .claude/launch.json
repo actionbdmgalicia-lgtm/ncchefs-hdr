@@ -3,8 +3,7 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "command": "npm run dev",
       "cwd": "/Users/maccuatro/PROGRAMACION/CLAUDE/ncchefs-bodas-2026",
       "port": 5173
     }

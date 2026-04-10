@@ -182,6 +182,74 @@ export interface CreateDishFormData {
   tags: string[]
 }
 
+// HDR Extended Types — all sections from Excel templates
+
+export interface BarraLibreMusica {
+  inicio_barra?: string       // hour HH:MM
+  cierre_barra?: string
+  dj?: string
+  otros?: string
+}
+
+export interface AperitivoMontaje {
+  ubicacion?: string
+  manteleria?: string
+}
+
+export interface BanqueteMontaje {
+  manteleria?: string
+  bajoplato?: string
+  num_mesas?: number
+  flores?: string
+  decoraciones?: string
+}
+
+export interface UbicacionMontajes {
+  minutas?: string            // model name / seating plan
+  seating_plan?: string
+  aperitivo?: AperitivoMontaje
+  banquete?: BanqueteMontaje
+  decoraciones_generales?: string
+}
+
+export interface ContratacionesExternas {
+  fotografo?: string
+  video?: string
+  animacion?: string
+  autobuses?: string
+  bandas?: string
+  otros?: string
+}
+
+export interface FechasImportantes {
+  confirmacion_invitados?: string   // ISO date string
+  ingreso_inicial?: string
+  ingreso_restante?: string
+}
+
+export interface ClienteInfo {
+  nombres?: string
+  telefonos?: string
+  mails?: string
+  direccion?: string
+}
+
+export interface ExtraCuenta {
+  concepto: string
+  precio_unitario?: number
+  unidades_previstas?: number
+  total_previsto?: number
+  unidades_reales?: number
+  total_real?: number
+}
+
+export interface CuentasDetalle {
+  precio_adulto?: number
+  precio_nino?: number
+  precio_profesional?: number
+  extras?: ExtraCuenta[]
+}
+
 // FIBA Integration Types
 export interface FIBAPlato {
   id: string
