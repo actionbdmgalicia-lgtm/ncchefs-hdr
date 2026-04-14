@@ -200,6 +200,7 @@ export const AdminDataLoader = () => {
       const menus = weddings.map(w => {
         const m = w.menu || {}
         const b = m.bodega || {}
+        const inf = m.infantil || {}
         return {
           'Boda': w.couples_name || '',
           'Fecha': w.date || '',
@@ -209,7 +210,10 @@ export const AdminDataLoader = () => {
           'Entrante': m.entrante || '',
           'Pescado': m.pescado || '',
           'Carne': m.carne || '',
-          'Postre': m.postre || '',
+          'Postre Adultos': m.postre || '',
+          'Postre Infantil': inf.postre || '',
+          'Menú Infantil': Array.isArray(inf.menu) ? inf.menu.join(' | ') : (inf.menu || ''),
+          'Notas Infantil': inf.notas || '',
           'Recena': Array.isArray(m.recena) ? m.recena.join(' | ') : '',
           'Bodega Blanco': b.blanco || '',
           'Bodega Tinto': b.tinto || '',
@@ -219,8 +223,8 @@ export const AdminDataLoader = () => {
       })
       const wsMenus = XLSX.utils.json_to_sheet(menus)
       wsMenus['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 14 },
-        { wch: 60 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 40 },
-        { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 30 }]
+        { wch: 50 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 30 },
+        { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 30 }]
       XLSX.utils.book_append_sheet(wb, wsMenus, 'Menú')
 
       // ── Hoja 4: Menús especiales ──────────────────────────────────────────

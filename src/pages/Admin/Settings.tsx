@@ -65,14 +65,21 @@ export const Settings = () => {
       const menus = weddings.map(w => {
         const m = w.menu || {}
         const b = m.bodega || {}
+        const inf = m.infantil || {}
         return {
           'Boda': w.couples_name || '',
           'Fecha': w.date || '',
           'Coordinadora': w.coordinator || '',
           'Aperitivos': Array.isArray(m.aperitivos) ? m.aperitivos.join(' | ') : '',
+          'Complementos': Array.isArray(m.complementos) ? m.complementos.join(' | ') : '',
           'Entrante': m.entrante || '',
+          'Pescado': m.pescado || '',
           'Carne': m.carne || '',
-          'Postre': m.postre || '',
+          'Postre Adultos': m.postre || '',
+          'Postre Infantil': inf.postre || '',
+          'Menú Infantil': Array.isArray(inf.menu) ? inf.menu.join(' | ') : (inf.menu || ''),
+          'Notas Infantil': inf.notas || '',
+          'Recena': Array.isArray(m.recena) ? m.recena.join(' | ') : '',
           'Vino Blanco': b.blanco || '',
           'Vino Tinto': b.tinto || '',
           'Cava': b.cava || '',
@@ -80,8 +87,8 @@ export const Settings = () => {
       })
       const wsMenus = XLSX.utils.json_to_sheet(menus)
       wsMenus['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 14 },
-        { wch: 60 }, { wch: 40 }, { wch: 40 }, { wch: 30 },
-        { wch: 30 }, { wch: 30 }, { wch: 30 }]
+        { wch: 50 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 30 },
+        { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 30 }, { wch: 30 }]
       XLSX.utils.book_append_sheet(wb, wsMenus, 'Menú')
 
       // Menús especiales
