@@ -299,3 +299,56 @@ export interface WeddingVersion {
     final?: WeddingEvaluation
   }
 }
+
+// ── Sheets Sync ──────────────────────────────────────────────────────────────
+
+export interface SheetCoordConfig {
+  coordinadora: string
+  scriptUrl: string
+}
+
+export interface SyncStats {
+  total: number
+  updated: number
+  created: number
+  unchanged: number
+  errors: string[]
+  durationMs: number
+}
+
+export interface SyncProgress {
+  phase: 'idle' | 'fetching' | 'comparing' | 'writing' | 'done' | 'error'
+  current: number
+  total: number
+  message: string
+}
+
+export interface SheetWeddingRaw {
+  couples_name: string
+  clients: string
+  date: string | null
+  coordinator: string
+  adults: number
+  children: number
+  service_type: string
+  ceremony_type: string
+  start_time: string
+  end_time: string
+  file_source: string
+  menu: {
+    aperitivos: string[]; complementos: string[]; marisco: string[]; tapa: string[]
+    entrante: string; pescado: string; carne: string; postre: string
+    infantil: { menu: string[]; postre: string; notas: string }
+    recena: string[]
+    bodega: { blanco: string; tinto: string; cava: string; otros: string }
+    special_menus: Record<string, number>
+  }
+  special_menus: Record<string, number>
+  protocols: Record<string, string>
+  barra_libre_musica: Record<string, string>
+  contrataciones_externas: Record<string, string>
+  fechas_importantes: Record<string, string>
+  cliente_info: Record<string, string>
+  ubicacion_montajes: Record<string, string>
+  notes: string[]
+}

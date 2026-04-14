@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { db } from '../services/firebase'
 import { collection, addDoc, deleteDoc, getDocs, doc, updateDoc } from 'firebase/firestore'
 import * as XLSX from 'xlsx'
+import {
+  loadSyncConfig, saveSyncConfig, loadLastSync, saveLastSync, syncAllSheets
+} from '../services/sheetsSyncService'
+import type { SheetCoordConfig, SyncProgress, SyncStats } from '../types'
 
 export const AdminDataLoader = () => {
   const [loading, setLoading] = useState(false)
@@ -11,6 +15,44 @@ export const AdminDataLoader = () => {
   const [migrateLoading, setMigrateLoading] = useState(false)
   const [exportLoading, setExportLoading] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
+
+  // ── Sheets sync ────────────────────────────────────────────────────────────
+  const [syncConfigs, setSyncConfigs] = useState<SheetCoordConfig[]>(loadSyncConfig)
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({ phase: 'idle', current: 0, total: 0, message: '' })
+  const [syncStats, setSyncStats] = useState<SyncStats | null>(null)
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(loadLastSync)
+  const [autoSync, setAutoSync] = useState(false)
+  const autoSyncRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (autoSync) {
+      autoSyncRef.current = setInterval(() => { handleSync() }, 5 * 60 * 1000)
+    } else {
+      if (autoSyncRef.current) clearInterval(autoSyncRef.current)
+    }
+    return () => { if (autoSyncRef.current) clearInterval(autoSyncRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSync, syncConfigs])
+
+  const handleSync = async () => {
+    setSyncProgress({ phase: 'fetching', current: 0, total: 5, message: 'Iniciando sync...' })
+    setSyncStats(null)
+    try {
+      const stats = await syncAllSheets(syncConfigs, setSyncProgress)
+      setSyncStats(stats)
+      const now = new Date().toISOString()
+      setLastSyncAt(now)
+      saveLastSync(now)
+    } catch (err) {
+      setSyncProgress({ phase: 'error', current: 0, total: 0, message: `Error: ${err instanceof Error ? err.message : err}` })
+    }
+  }
+
+  const handleConfigChange = (index: number, value: string) => {
+    const updated = syncConfigs.map((c, i) => i === index ? { ...c, scriptUrl: value } : c)
+    setSyncConfigs(updated)
+    saveSyncConfig(updated)
+  }
 
   const loadWeddings = async () => {
     setLoading(true)
@@ -465,6 +507,98 @@ export const AdminDataLoader = () => {
           className="px-6 py-2 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700 disabled:opacity-50">
           {exportLoading ? 'Generando...' : '⬇️ Descargar Excel'}
         </button>
+      </div>
+
+      {/* ── Sincronización Google Sheets ─────────────────────────────────── */}
+      <div className="bg-violet-50 border-2 border-violet-200 rounded-lg p-6">
+        <h2 className="text-xl font-bold text-violet-900 mb-1">🔗 Sincronización con Google Sheets</h2>
+        <p className="text-sm text-violet-700 mb-4">
+          Google Sheets es la fuente de verdad. La app lee los cambios y actualiza Firestore.
+        </p>
+
+        <div className="space-y-2 mb-5">
+          {syncConfigs.map((cfg, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <span className="w-24 text-xs font-semibold text-violet-800 shrink-0">{cfg.coordinadora}</span>
+              <input
+                type="url"
+                value={cfg.scriptUrl}
+                onChange={e => handleConfigChange(i, e.target.value)}
+                placeholder="https://script.google.com/macros/s/..."
+                className="flex-1 text-xs border border-violet-300 rounded px-2 py-1.5 font-mono
+                           focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white"
+              />
+            </div>
+          ))}
+        </div>
+
+        {syncProgress.phase !== 'idle' && (
+          <div className="mb-4">
+            <p className={`text-sm font-semibold mb-1 ${
+              syncProgress.phase === 'done' ? 'text-green-700'
+              : syncProgress.phase === 'error' ? 'text-red-700'
+              : 'text-violet-700'}`}>
+              {syncProgress.message}
+            </p>
+            {syncProgress.total > 0 && !['done','error'].includes(syncProgress.phase) && (
+              <div className="w-full bg-violet-200 rounded-full h-2">
+                <div className="bg-violet-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((syncProgress.current / syncProgress.total) * 100)}%` }} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {syncStats && (
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {[
+              { label: 'Total',        value: syncStats.total,     color: 'text-violet-700' },
+              { label: 'Actualizadas', value: syncStats.updated,   color: 'text-blue-700' },
+              { label: 'Nuevas',       value: syncStats.created,   color: 'text-green-700' },
+              { label: 'Sin cambios',  value: syncStats.unchanged, color: 'text-gray-500' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded p-2 text-center border border-violet-100">
+                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-xs text-gray-500">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {syncStats && syncStats.errors.length > 0 && (
+          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+            <strong>Errores ({syncStats.errors.length}):</strong>
+            <ul className="list-disc ml-4 mt-1">
+              {syncStats.errors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+              {syncStats.errors.length > 5 && <li>...y {syncStats.errors.length - 5} más</li>}
+            </ul>
+          </div>
+        )}
+
+        {lastSyncAt && (
+          <p className="text-xs text-violet-600 mb-3">
+            Último sync: {new Date(lastSyncAt).toLocaleString('es-ES')}
+            {syncStats && ` · ${(syncStats.durationMs / 1000).toFixed(1)}s`}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <button
+            onClick={handleSync}
+            disabled={['fetching','writing','comparing'].includes(syncProgress.phase)}
+            className="px-6 py-2 bg-violet-600 text-white rounded font-medium hover:bg-violet-700 disabled:opacity-50">
+            {['fetching','writing','comparing'].includes(syncProgress.phase) ? 'Sincronizando...' : '⟳ Sincronizar Ahora'}
+          </button>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div onClick={() => setAutoSync(a => !a)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer
+                ${autoSync ? 'bg-violet-600' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform
+                ${autoSync ? 'translate-x-4' : 'translate-x-1'}`} />
+            </div>
+            <span className="text-sm text-violet-800">Auto-sync cada 5 min</span>
+          </label>
+        </div>
       </div>
 
     </div>
