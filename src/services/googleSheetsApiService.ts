@@ -469,16 +469,27 @@ function parseFechasCliente(rows: Row[]) {
 
 // ─── PARSE MONTAJES ───────────────────────────────────────────────────────────
 
-function parseMontajes(rows: Row[]) {
-  const r: Record<string, string> = {
-    minutas_modelo: '',
-    nombre_minuta: '',
-    banquete_color: '',
-    banquete_vaso: '',
-    banquete_flores: '',
+function parseMontajes(rows: Row[]): {
+  minutas_modelo?: string
+  nombre_minuta?: string
+  banquete_color?: string
+  banquete_vaso?: string
+  banquete_flores?: string
+  decoraciones_generales: string
+  protocolo_autobuses?: string
+  regalos?: string
+} {
+  const r: {
+    minutas_modelo?: string
+    nombre_minuta?: string
+    banquete_color?: string
+    banquete_vaso?: string
+    banquete_flores?: string
+    decoraciones_generales: string
+    protocolo_autobuses?: string
+    regalos?: string
+  } = {
     decoraciones_generales: '',
-    protocolo_autobuses: '',
-    regalos: '',
   }
   let idx = findSection(rows, 'ubicación y montajes')
   if (idx < 0) idx = findSection(rows, 'ubicacion y montajes')
