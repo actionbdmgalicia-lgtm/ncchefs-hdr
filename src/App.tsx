@@ -40,9 +40,10 @@ function App() {
                         <Route path="/weddings/new" element={<NewWedding />} />
                         <Route path="/weddings/:id/hdr" element={<RoadmapDetail />} />
                         <Route path="/dishes" element={<Dishes />} />
+                        <Route path="/admin" element={<AdminDataLoader />} />
+                        <Route path="/admin/loader" element={<AdminDataLoader />} />
                         <Route path="/admin/team" element={<TeamManagement />} />
                         <Route path="/admin/settings" element={<Settings />} />
-                        <Route path="/admin/loader" element={<AdminDataLoader />} />
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
                         <Route
                           path="*"

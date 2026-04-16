@@ -1,10 +1,11 @@
-import { collection, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc, addDoc, arrayUnion } from 'firebase/firestore'
 import { db } from './firebase'
+import { fetchFromGoogleSheet } from './googleSheetsApiService'
 import type { SheetCoordConfig, SheetWeddingRaw, SyncStats, SyncProgress } from '../types'
 
 // ─── CONFIG PERSISTENCE ───────────────────────────────────────────────────────
 
-const LS_KEY = 'ncchefs_sheets_config'
+const LS_KEY = 'ncchefs_sheets_config_v2'   // v2 = usa sheetUrl en lugar de scriptUrl
 const LS_LAST_SYNC = 'ncchefs_last_sync'
 
 export function loadSyncConfig(): SheetCoordConfig[] {
@@ -13,11 +14,11 @@ export function loadSyncConfig(): SheetCoordConfig[] {
     if (raw) return JSON.parse(raw) as SheetCoordConfig[]
   } catch { /* ignore */ }
   return [
-    { coordinadora: 'Marta',      scriptUrl: '' },
-    { coordinadora: 'Rosa',       scriptUrl: '' },
-    { coordinadora: 'Sara',       scriptUrl: '' },
-    { coordinadora: 'Andrea',     scriptUrl: '' },
-    { coordinadora: 'Jimena/Bea', scriptUrl: '' },
+    { coordinadora: 'Marta',      sheetUrl: '' },
+    { coordinadora: 'Rosa',       sheetUrl: '' },
+    { coordinadora: 'Sara',       sheetUrl: '' },
+    { coordinadora: 'Andrea',     sheetUrl: '' },
+    { coordinadora: 'Jimena/Bea', sheetUrl: '' },
   ]
 }
 
@@ -41,29 +42,6 @@ export function normalizeName(s: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '')
-}
-
-// ─── FETCH ONE SHEET ─────────────────────────────────────────────────────────
-
-export async function fetchFromSheet(config: SheetCoordConfig): Promise<{
-  coordinadora: string; ok: boolean; weddings: SheetWeddingRaw[]; error?: string
-}> {
-  if (!config.scriptUrl.trim()) {
-    return { coordinadora: config.coordinadora, ok: false, weddings: [], error: 'URL no configurada' }
-  }
-  try {
-    const url = `${config.scriptUrl}?t=${Date.now()}`
-    const res = await fetch(url, { cache: 'no-store' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const json = await res.json() as { ok: boolean; weddings: SheetWeddingRaw[]; error?: string }
-    if (!json.ok) throw new Error(json.error ?? 'Script returned ok:false')
-    return { coordinadora: config.coordinadora, ok: true, weddings: json.weddings ?? [] }
-  } catch (err) {
-    return {
-      coordinadora: config.coordinadora, ok: false, weddings: [],
-      error: err instanceof Error ? err.message : String(err),
-    }
-  }
 }
 
 // ─── DIFF ─────────────────────────────────────────────────────────────────────
@@ -123,6 +101,71 @@ function toFirestoreDoc(w: SheetWeddingRaw): Record<string, unknown> {
   }
 }
 
+// ─── HISTORY ENTRY ───────────────────────────────────────────────────────────
+
+function buildHistoryEntry(incoming: SheetWeddingRaw, existing: Record<string, unknown>): Record<string, unknown> {
+  const changes: string[] = []
+
+  // Campos simples
+  const simpleFields: Array<[keyof SheetWeddingRaw, string]> = [
+    ['date',          'Fecha boda'],
+    ['adults',        'Adultos'],
+    ['children',      'Niños'],
+    ['coordinator',   'Coordinadora'],
+    ['service_type',  'Tipo servicio'],
+    ['ceremony_type', 'Tipo ceremonia'],
+    ['start_time',    'Hora inicio'],
+    ['end_time',      'Hora cierre'],
+    ['clients',       'Clientes'],
+  ]
+  for (const [field, label] of simpleFields) {
+    const nv = String(incoming[field] ?? '')
+    const ov = String(existing[field] ?? '')
+    if (nv !== ov && nv) changes.push(`${label}: "${ov || '–'}" → "${nv}"`)
+  }
+
+  // Menú (campos principales)
+  const newMenu  = (incoming.menu  ?? {}) as Record<string, unknown>
+  const oldMenu  = (existing.menu  ?? {}) as Record<string, unknown>
+  for (const f of ['entrante', 'pescado', 'carne', 'postre']) {
+    if (String(newMenu[f] ?? '') !== String(oldMenu[f] ?? ''))
+      changes.push(`Menú ${f}: "${String(oldMenu[f] ?? '–')}" → "${String(newMenu[f] ?? '')}"`)
+  }
+
+  // Menús especiales
+  const newSp = (incoming.special_menus ?? {}) as Record<string, number>
+  const oldSp = (existing.special_menus ?? {})  as Record<string, number>
+  for (const k of Object.keys(newSp)) {
+    if ((newSp[k] ?? 0) !== (oldSp[k] ?? 0))
+      changes.push(`Menú especial ${k}: ${oldSp[k] ?? 0} → ${newSp[k]}`)
+  }
+
+  // Barra / contrataciones / fechas (indicar sección cambiada)
+  const sections: Array<[keyof SheetWeddingRaw, string]> = [
+    ['barra_libre_musica',      'Barra y música'],
+    ['contrataciones_externas', 'Contrataciones externas'],
+    ['fechas_importantes',      'Fechas importantes'],
+    ['cliente_info',            'Datos cliente'],
+    ['ubicacion_montajes',      'Montajes'],
+  ]
+  for (const [field, label] of sections) {
+    if (JSON.stringify(sortKeys(incoming[field] as Record<string, unknown>)) !==
+        JSON.stringify(sortKeys(existing[field]  as Record<string, unknown>)))
+      changes.push(`${label} actualizado`)
+  }
+
+  return {
+    date:    new Date().toISOString(),
+    type:    'sync',
+    source:  'google_sheets',
+    author:  incoming.file_source || incoming.coordinator || 'Sync automático',
+    comment: changes.length > 0
+      ? changes.join(' · ')
+      : 'Actualización desde Google Sheets',
+    changes,
+  }
+}
+
 // ─── MAIN SYNC ────────────────────────────────────────────────────────────────
 
 export async function syncAllSheets(
@@ -131,29 +174,35 @@ export async function syncAllSheets(
 ): Promise<SyncStats> {
   const started = Date.now()
   const stats: SyncStats = { total: 0, updated: 0, created: 0, unchanged: 0, errors: [], durationMs: 0 }
-  const active = configs.filter(c => c.scriptUrl.trim())
+  const active = configs.filter(c => c.sheetUrl?.trim())
 
   if (!active.length) {
     onProgress({ phase: 'error', current: 0, total: 0, message: 'No hay URLs configuradas' })
     return stats
   }
 
-  // 1. Fetch all sheets
+  // 1. Fetch all sheets (SERIALIZAR para no saturar API de Google: max 60 req/min)
   onProgress({ phase: 'fetching', current: 0, total: active.length, message: 'Descargando hojas...' })
-  const results = await Promise.allSettled(active.map(c => fetchFromSheet(c)))
-
   const allIncoming: SheetWeddingRaw[] = []
-  results.forEach((r, i) => {
-    const name = active[i].coordinadora
-    if (r.status === 'fulfilled' && r.value.ok) {
-      allIncoming.push(...r.value.weddings)
-      onProgress({ phase: 'fetching', current: i + 1, total: active.length, message: `${name}: ${r.value.weddings.length} bodas` })
-    } else {
-      const err = r.status === 'rejected' ? String(r.reason) : (r.value.error ?? 'Error desconocido')
-      stats.errors.push(`${name}: ${err}`)
+
+  for (let i = 0; i < active.length; i++) {
+    const config = active[i]
+    const name = config.coordinadora
+    try {
+      const result = await fetchFromGoogleSheet(config)
+      if (result.ok) {
+        allIncoming.push(...result.weddings)
+        onProgress({ phase: 'fetching', current: i + 1, total: active.length, message: `${name}: ${result.weddings.length} bodas` })
+      } else {
+        const err = result.error ?? 'Error desconocido'
+        stats.errors.push(`${name}: ${err}`)
+        onProgress({ phase: 'fetching', current: i + 1, total: active.length, message: `${name}: Error` })
+      }
+    } catch (err) {
+      stats.errors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`)
       onProgress({ phase: 'fetching', current: i + 1, total: active.length, message: `${name}: Error` })
     }
-  })
+  }
 
   stats.total = allIncoming.length
 
@@ -185,13 +234,31 @@ export async function syncAllSheets(
     try {
       if (existing) {
         if (hasChanged(incoming, existing.data)) {
-          await updateDoc(doc(db, 'weddings', existing.id), toFirestoreDoc(incoming))
+          // Actualizar datos PERO preservar status + añadir entrada al historial
+          const historyEntry = buildHistoryEntry(incoming, existing.data)
+          await updateDoc(doc(db, 'weddings', existing.id), {
+            ...toFirestoreDoc(incoming),
+            // status NO se incluye → Firestore lo conserva sin tocarlo
+            history: arrayUnion(historyEntry),
+          })
           stats.updated++
         } else {
           stats.unchanged++
         }
       } else {
-        await addDoc(collection(db, 'weddings'), { ...toFirestoreDoc(incoming), status: 'pending' })
+        // Boda nueva: status inicial + primera entrada en historial
+        await addDoc(collection(db, 'weddings'), {
+          ...toFirestoreDoc(incoming),
+          status: 'pending',
+          history: [{
+            date:    new Date().toISOString(),
+            type:    'created',
+            source:  'google_sheets',
+            author:  incoming.file_source || incoming.coordinator || 'Sync',
+            comment: 'Boda creada desde Google Sheets',
+            changes: [],
+          }],
+        })
         stats.created++
       }
     } catch (err) {

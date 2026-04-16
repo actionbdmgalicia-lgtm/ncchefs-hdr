@@ -304,7 +304,7 @@ export interface WeddingVersion {
 
 export interface SheetCoordConfig {
   coordinadora: string
-  scriptUrl: string
+  sheetUrl: string
 }
 
 export interface SyncStats {
@@ -323,6 +323,13 @@ export interface SyncProgress {
   message: string
 }
 
+export interface SpecialMenuGuest {
+  nombre: string
+  mesa: string
+  intolerancia: string
+  modificaciones?: string[]
+}
+
 export interface SheetWeddingRaw {
   couples_name: string
   clients: string
@@ -330,25 +337,75 @@ export interface SheetWeddingRaw {
   coordinator: string
   adults: number
   children: number
+  professionals: number
   service_type: string
   ceremony_type: string
+  ceremony_time?: string
+  ceremony_place?: string
   start_time: string
   end_time: string
   file_source: string
+
   menu: {
     aperitivos: string[]; complementos: string[]; marisco: string[]; tapa: string[]
     entrante: string; pescado: string; carne: string; postre: string
     infantil: { menu: string[]; postre: string; notas: string }
     recena: string[]
     bodega: { blanco: string; tinto: string; cava: string; otros: string }
-    special_menus: Record<string, number>
   }
+  special_menus_detailed: SpecialMenuGuest[]
   special_menus: Record<string, number>
+
+  barra_libre_musica: {
+    inicio_barra: string
+    cierre_barra: string
+    dj: string
+    otros: string
+  }
+  contrataciones_externas: {
+    fotografo?: string
+    fotografo_tel?: string
+    video?: string
+    video_tel?: string
+    animacion?: string
+    autobuses?: string
+    estilistas?: string
+    estilistas_tel?: string
+    bandas?: string
+    otros?: string
+  }
+  fechas_importantes: {
+    confirmacion_invitados: string
+    ingreso_inicial: string
+    ingreso_restante: string
+  }
+  cliente_info: {
+    nombres: string
+    telefonos: string
+    mails: string
+    direccion: string
+  }
+  ubicacion_montajes: {
+    minutas_modelo?: string
+    nombre_minuta?: string
+    banquete_color?: string
+    banquete_vaso?: string
+    banquete_flores?: string
+    decoraciones_generales: string
+    protocolo_autobuses?: string
+    regalos?: string
+  }
+  cuentas_detalle?: {
+    precio_adulto?: number
+    precio_nino?: number
+    precio_profesional?: number
+    extras?: Array<{
+      concepto: string
+      precio_unitario?: number
+      unidades_previstas?: number
+      total_previsto?: number
+    }>
+  }
   protocols: Record<string, string>
-  barra_libre_musica: Record<string, string>
-  contrataciones_externas: Record<string, string>
-  fechas_importantes: Record<string, string>
-  cliente_info: Record<string, string>
-  ubicacion_montajes: Record<string, string>
   notes: string[]
 }

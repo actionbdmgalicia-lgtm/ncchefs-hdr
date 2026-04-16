@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import {
   loadSyncConfig, saveSyncConfig, loadLastSync, saveLastSync, syncAllSheets
 } from '../services/sheetsSyncService'
+import { hasApiKey, isValidSheetUrl } from '../services/googleSheetsApiService'
 import type { SheetCoordConfig, SyncProgress, SyncStats } from '../types'
 
 export const AdminDataLoader = () => {
@@ -49,7 +50,7 @@ export const AdminDataLoader = () => {
   }
 
   const handleConfigChange = (index: number, value: string) => {
-    const updated = syncConfigs.map((c, i) => i === index ? { ...c, scriptUrl: value } : c)
+    const updated = syncConfigs.map((c, i) => i === index ? { ...c, sheetUrl: value } : c)
     setSyncConfigs(updated)
     saveSyncConfig(updated)
   }
@@ -435,6 +436,24 @@ export const AdminDataLoader = () => {
     }
   }
 
+  const clearAndResync = async () => {
+    if (!window.confirm('¿Eliminar todas las bodas y re-sincronizar desde Google Sheets con el parser mejorado?')) return
+    setLoading(true)
+    setMessage('Eliminando bodas existentes...')
+    try {
+      const snap = await getDocs(collection(db, 'weddings'))
+      for (const d of snap.docs) await deleteDoc(d.ref)
+      setMessage(`Eliminadas ${snap.size} bodas. Iniciando sincronización...`)
+
+      // Now sync from Google Sheets
+      setLoading(false)
+      await handleSync()
+    } catch (err) {
+      setMessage(`✗ Error: ${err}`)
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="p-8 max-w-2xl mx-auto space-y-6">
 
@@ -512,25 +531,68 @@ export const AdminDataLoader = () => {
       {/* ── Sincronización Google Sheets ─────────────────────────────────── */}
       <div className="bg-violet-50 border-2 border-violet-200 rounded-lg p-6">
         <h2 className="text-xl font-bold text-violet-900 mb-1">🔗 Sincronización con Google Sheets</h2>
-        <p className="text-sm text-violet-700 mb-4">
-          Google Sheets es la fuente de verdad. La app lee los cambios y actualiza Firestore.
+        <p className="text-sm text-violet-700 mb-3">
+          Pega el enlace normal de cada Google Sheet. Sin Apps Script, sin deploys. ¡Solo copia y pega!
         </p>
 
-        <div className="space-y-2 mb-5">
-          {syncConfigs.map((cfg, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <span className="w-24 text-xs font-semibold text-violet-800 shrink-0">{cfg.coordinadora}</span>
-              <input
-                type="url"
-                value={cfg.scriptUrl}
-                onChange={e => handleConfigChange(i, e.target.value)}
-                placeholder="https://script.google.com/macros/s/..."
-                className="flex-1 text-xs border border-violet-300 rounded px-2 py-1.5 font-mono
-                           focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white"
-              />
-            </div>
-          ))}
+        {/* API Key status */}
+        {!hasApiKey() ? (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs">
+            <p className="font-bold text-amber-800 mb-1">⚠️ Falta la API Key de Google Sheets</p>
+            <p className="text-amber-700 mb-2">Añade esto en tu archivo <code className="bg-amber-100 px-1 rounded">.env.local</code>:</p>
+            <code className="block bg-white border border-amber-200 rounded px-2 py-1.5 text-amber-900 font-mono select-all">
+              VITE_GOOGLE_SHEETS_API_KEY=AIza...tu_clave_aqui
+            </code>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-amber-700 font-semibold">📋 Cómo conseguir la API Key (2 min)</summary>
+              <ol className="mt-1 text-amber-700 list-decimal ml-4 space-y-0.5">
+                <li>Ve a <strong>console.cloud.google.com</strong></li>
+                <li>Crea proyecto o selecciona uno existente</li>
+                <li>Menú → <strong>APIs y Servicios → Biblioteca</strong></li>
+                <li>Busca <strong>"Google Sheets API"</strong> → Activar</li>
+                <li>Menú → <strong>APIs y Servicios → Credenciales</strong></li>
+                <li>Crear credenciales → <strong>Clave de API</strong></li>
+                <li>Copia la clave y pégala en .env.local</li>
+                <li>Reinicia el servidor de desarrollo</li>
+              </ol>
+              <p className="mt-1 text-amber-600">⚡ Además: cada Google Sheet debe ser <strong>"Cualquiera con el enlace → Ver"</strong></p>
+            </details>
+          </div>
+        ) : (
+          <div className="mb-3 px-3 py-1.5 bg-green-50 border border-green-200 rounded text-xs text-green-700 flex items-center gap-2">
+            <span>✅</span> <span>API Key configurada. Listo para sincronizar.</span>
+          </div>
+        )}
+
+        {/* Sheet URL inputs */}
+        <div className="space-y-2 mb-2">
+          {syncConfigs.map((cfg, i) => {
+            const url = cfg.sheetUrl?.trim() || ''
+            const valid = !url || isValidSheetUrl(url)
+            return (
+              <div key={i} className="flex gap-2 items-center">
+                <span className="w-24 text-xs font-semibold text-violet-800 shrink-0">{cfg.coordinadora}</span>
+                <input
+                  type="url"
+                  value={url}
+                  onChange={e => handleConfigChange(i, e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  className={`flex-1 text-xs border rounded px-2 py-1.5 font-mono
+                    focus:outline-none focus:ring-1 bg-white
+                    ${valid
+                      ? 'border-violet-300 focus:ring-violet-500'
+                      : 'border-red-300 focus:ring-red-400 bg-red-50'
+                    }`}
+                />
+                {url && valid && <span className="text-green-500 text-sm shrink-0">✓</span>}
+                {url && !valid && <span className="text-red-400 text-sm shrink-0">✗</span>}
+              </div>
+            )
+          })}
         </div>
+        <p className="text-xs text-violet-500 mb-4">
+          💡 En cada Google Sheet: <strong>Compartir → Cualquiera con el enlace → Lector</strong>
+        </p>
 
         {syncProgress.phase !== 'idle' && (
           <div className="mb-4">
@@ -588,6 +650,12 @@ export const AdminDataLoader = () => {
             disabled={['fetching','writing','comparing'].includes(syncProgress.phase)}
             className="px-6 py-2 bg-violet-600 text-white rounded font-medium hover:bg-violet-700 disabled:opacity-50">
             {['fetching','writing','comparing'].includes(syncProgress.phase) ? 'Sincronizando...' : '⟳ Sincronizar Ahora'}
+          </button>
+          <button
+            onClick={clearAndResync}
+            disabled={['fetching','writing','comparing'].includes(syncProgress.phase) || loading}
+            className="px-6 py-2 bg-orange-600 text-white rounded font-medium hover:bg-orange-700 disabled:opacity-50">
+            {loading ? 'Limpiando...' : '🔄 Limpiar y Re-sincronizar'}
           </button>
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <div onClick={() => setAutoSync(a => !a)}
