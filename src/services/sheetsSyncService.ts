@@ -44,6 +44,26 @@ export function normalizeName(s: string): string {
     .replace(/[^a-z0-9]/g, '')
 }
 
+// ─── CLEAN UNDEFINED VALUES (Firestore doesn't allow undefined) ───────────────
+
+function cleanUndefined(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return undefined
+  if (typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) {
+    return obj
+      .map(cleanUndefined)
+      .filter(v => v !== undefined)
+  }
+  const cleaned: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    const cleaned_v = cleanUndefined(v)
+    if (cleaned_v !== undefined) {
+      cleaned[k] = cleaned_v
+    }
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined
+}
+
 // ─── DIFF ─────────────────────────────────────────────────────────────────────
 
 function sortKeys(obj: unknown): unknown {
@@ -75,30 +95,36 @@ function hasChanged(incoming: SheetWeddingRaw, existing: Record<string, unknown>
 }
 
 function toFirestoreDoc(w: SheetWeddingRaw): Record<string, unknown> {
-  return {
+  const doc: Record<string, unknown> = {
     couples_name: w.couples_name || '',
     clients:      w.clients || '',
     date:         w.date || '',
     coordinator:  w.coordinator || '',
     adults:       w.adults || 0,
     children:     w.children || 0,
+    professionals: w.professionals || 0,
+    ceremony_time: w.ceremony_time || '',
+    ceremony_place: w.ceremony_place || '',
     service_type: w.service_type || '',
     ceremony_type: w.ceremony_type || '',
     start_time:   w.start_time || '',
     end_time:     w.end_time || '',
     file_source:  w.file_source || '',
-    menu:                    w.menu || {},
-    special_menus:           w.special_menus || {},
-    protocols:               w.protocols || {},
-    barra_libre_musica:      w.barra_libre_musica || {},
-    contrataciones_externas: w.contrataciones_externas || {},
-    fechas_importantes:      w.fechas_importantes || {},
-    cliente_info:            w.cliente_info || {},
-    ubicacion_montajes:      w.ubicacion_montajes || {},
+    menu:                    cleanUndefined(w.menu) || {},
+    special_menus:           cleanUndefined(w.special_menus) || {},
+    special_menus_detailed:  cleanUndefined(w.special_menus_detailed) || [],
+    protocols:               cleanUndefined(w.protocols) || {},
+    barra_libre_musica:      cleanUndefined(w.barra_libre_musica) || {},
+    contrataciones_externas: cleanUndefined(w.contrataciones_externas) || {},
+    fechas_importantes:      cleanUndefined(w.fechas_importantes) || {},
+    cliente_info:            cleanUndefined(w.cliente_info) || {},
+    ubicacion_montajes:      cleanUndefined(w.ubicacion_montajes) || {},
+    cuentas_detalle:         cleanUndefined(w.cuentas_detalle) || {},
     notes:       w.notes || [],
     sync_source: 'sheets',
     synced_at:   new Date().toISOString(),
   }
+  return doc
 }
 
 // ─── HISTORY ENTRY ───────────────────────────────────────────────────────────
