@@ -375,7 +375,13 @@ function parseContrataciones(rows: Row[], sec: Record<string, number>) {
 
   if (sec['contrat'] === undefined) return c
 
-  rows.slice(sec['contrat'] + 1, sec['contrat'] + 20).forEach(row => {
+  // Terminar en la siguiente sección para no contaminar
+  const contratEnd = Math.min(
+    ...[sec['fechas'], sec['clientes'], sec['cuentas'], sec['montajes']]
+      .filter(i => i !== undefined && i > sec['contrat']) as number[]
+  , (sec['contrat'] as number) + 20)
+
+  rows.slice(sec['contrat'] + 1, contratEnd).forEach(row => {
     const a = sl(row[0])
     const nombre = s(row[1])
     const tel    = s(row[5])  // teléfono SIEMPRE en col F (idx 5)
@@ -412,8 +418,7 @@ function parseContrataciones(rows: Row[], sec: Record<string, number>) {
   })
 
   // Detectar MUNDOROSSA específicamente (nombre contiene "MUNDOROSSA")
-  // Re-scan para asegurarse
-  rows.slice(sec['contrat'] + 1, sec['contrat'] + 20).forEach(row => {
+  rows.slice(sec['contrat'] + 1, contratEnd).forEach(row => {
     const nombre = s(row[1])
     const tel    = s(row[5]) || s(row[4])
     if (nombre.toUpperCase().includes('MUNDOROSSA')) {
